@@ -1,0 +1,3 @@
+[submodule "shopify-mcp"]
+	path = shopify-mcp
+	url = https://github.com/GeLi2001/shopify-mcp.git
