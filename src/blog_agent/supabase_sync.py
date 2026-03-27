@@ -102,11 +102,17 @@ def build_rows(config: AgentConfig) -> list[dict[str, Any]]:
     history = load_history(config.history_file)
     history_lookup = {Path(item.output_path).name: item for item in history}
     rows: list[dict[str, Any]] = []
+    covered_post_ids: set[str] = set()
+    covered_images: set[str] = set()
 
     for item in pipeline:
         post_frontmatter, post_markdown = load_post_content(item)
         history_item = history_lookup.get(item.post_id or "")
         image_name, image_mime, image_b64 = load_image_content(item)
+        if image_name:
+            covered_images.add(image_name)
+        if item.post_id:
+            covered_post_ids.add(item.post_id)
         row: dict[str, Any] = {
             "pipeline_id": item.id,
             "post_id": item.post_id,
@@ -151,6 +157,104 @@ def build_rows(config: AgentConfig) -> list[dict[str, Any]]:
             "generated_image_base64": image_b64,
         }
         rows.append(row)
+
+    for path in sorted(CONTENT_DIR.glob("*.md")):
+        if path.name in covered_post_ids:
+            continue
+        frontmatter, body = parse_markdown_file(path)
+        history_item = history_lookup.get(path.name)
+        rows.append(
+            {
+                "pipeline_id": f"local-post-{path.stem}",
+                "post_id": path.name,
+                "title": str(frontmatter.get("title", path.stem)),
+                "query": history_item.query if history_item else "",
+                "cluster": history_item.cluster if history_item else "local",
+                "pillar_id": "",
+                "pillar_name": "",
+                "pillar_claim": "",
+                "main_topic": "",
+                "sub_blog_tag": "local-post",
+                "is_pillar_head": False,
+                "pillar_head_post_id": None,
+                "pillar_head_slug": None,
+                "planned_keywords": [],
+                "path": str(path),
+                "scheduled_for": str(frontmatter.get("date", "")) or "1970-01-01",
+                "status": "draft",
+                "topic_role": "side",
+                "created_at": None,
+                "approved_at": None,
+                "pushed_at": None,
+                "shopify_article_id": None,
+                "shopify_blog_id": None,
+                "shopify_article_handle": None,
+                "topic_angle": "Imported local post",
+                "topic_outline": [],
+                "topic_internal_links": [],
+                "guideline_report": None,
+                "pipeline_metadata": {"import_source": "local-posts"},
+                "post_frontmatter": frontmatter or None,
+                "post_markdown": body,
+                "history_title": history_item.title if history_item else None,
+                "history_slug": history_item.slug if history_item else None,
+                "history_query": history_item.query if history_item else None,
+                "history_cluster": history_item.cluster if history_item else None,
+                "history_created_on": history_item.created_on.isoformat() if history_item else None,
+                "generated_image_file": "",
+                "generated_image_mime_type": "",
+                "generated_image_base64": "",
+            }
+        )
+
+    for image_path in sorted(GENERATED_IMAGE_DIR.glob("*")):
+        if not image_path.is_file() or image_path.name in covered_images:
+            continue
+        mime = mimetypes.guess_type(image_path.name)[0] or "application/octet-stream"
+        image_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+        rows.append(
+            {
+                "pipeline_id": f"local-image-{image_path.stem}",
+                "post_id": None,
+                "title": f"Local image asset: {image_path.name}",
+                "query": "",
+                "cluster": "local",
+                "pillar_id": "",
+                "pillar_name": "",
+                "pillar_claim": "",
+                "main_topic": "",
+                "sub_blog_tag": "local-image",
+                "is_pillar_head": False,
+                "pillar_head_post_id": None,
+                "pillar_head_slug": None,
+                "planned_keywords": [],
+                "path": str(image_path),
+                "scheduled_for": "1970-01-01",
+                "status": "draft",
+                "topic_role": "side",
+                "created_at": None,
+                "approved_at": None,
+                "pushed_at": None,
+                "shopify_article_id": None,
+                "shopify_blog_id": None,
+                "shopify_article_handle": None,
+                "topic_angle": "Imported local image",
+                "topic_outline": [],
+                "topic_internal_links": [],
+                "guideline_report": None,
+                "pipeline_metadata": {"import_source": "local-images"},
+                "post_frontmatter": None,
+                "post_markdown": "",
+                "history_title": None,
+                "history_slug": None,
+                "history_query": None,
+                "history_cluster": None,
+                "history_created_on": None,
+                "generated_image_file": image_path.name,
+                "generated_image_mime_type": mime,
+                "generated_image_base64": image_b64,
+            }
+        )
 
     return rows
 
