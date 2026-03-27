@@ -22,6 +22,7 @@ class SupabaseConfig:
     service_role_key: str
     table: str
     chunk_size: int
+    logical_namespace: str
 
     @classmethod
     def from_env(cls) -> "SupabaseConfig":
@@ -29,12 +30,22 @@ class SupabaseConfig:
         service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
         table = os.getenv("SUPABASE_BLOG_TABLE", "blog_entries").strip() or "blog_entries"
         chunk_size = max(1, min(25, int(os.getenv("SUPABASE_SYNC_CHUNK_SIZE", "3"))))
+        logical_namespace = (
+            os.getenv("SUPABASE_LOGICAL_NAMESPACE", "pillar_architecture_blog_entries").strip()
+            or "pillar_architecture_blog_entries"
+        )
         if not url or not service_role_key:
             raise RuntimeError(
                 "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. "
                 "Set both environment variables before syncing."
             )
-        return cls(url=url, service_role_key=service_role_key, table=table, chunk_size=chunk_size)
+        return cls(
+            url=url,
+            service_role_key=service_role_key,
+            table=table,
+            chunk_size=chunk_size,
+            logical_namespace=logical_namespace,
+        )
 
 
 def sync_blog_entries_to_supabase(config: AgentConfig) -> tuple[int, str]:
@@ -53,6 +64,28 @@ def sync_blog_entries_to_supabase(config: AgentConfig) -> tuple[int, str]:
     params = {"on_conflict": "pipeline_id"}
 
     with httpx.Client(timeout=30.0) as client:
+        if supabase.table == "table_name":
+            delete_response = client.delete(
+                endpoint,
+                headers=headers,
+                params={"name": f"eq.{supabase.logical_namespace}"},
+            )
+            if delete_response.status_code >= 300:
+                raise RuntimeError(
+                    "Supabase delete-before-sync failed "
+                    f"({delete_response.status_code}): {delete_response.text[:500]}"
+                )
+            wrapped_rows = [{"name": supabase.logical_namespace, "data": row} for row in rows]
+            for offset in range(0, len(wrapped_rows), supabase.chunk_size):
+                chunk = wrapped_rows[offset : offset + supabase.chunk_size]
+                response = client.post(endpoint, headers=headers, json=chunk)
+                if response.status_code >= 300:
+                    raise RuntimeError(
+                        "Supabase insert failed "
+                        f"({response.status_code}): {response.text[:500]}"
+                    )
+            return len(rows), f"{supabase.table}:{supabase.logical_namespace}"
+
         for offset in range(0, len(rows), supabase.chunk_size):
             chunk = rows[offset : offset + supabase.chunk_size]
             response = client.post(endpoint, headers=headers, params=params, json=chunk)
