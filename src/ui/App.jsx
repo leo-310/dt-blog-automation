@@ -497,9 +497,15 @@ function MetaCard({ label, value }) {
 
 function normalizeApiError(status, raw, fallback) {
   if (status === 0) {
+    const isLocalPage =
+      typeof window !== "undefined" &&
+      (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost");
     const base = API_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "");
-    const apiTarget = base || "the local API";
-    return `Cannot reach API at ${apiTarget}. Start it with \`source .venv/bin/activate && blog-agent-api\`, then retry.`;
+    const apiTarget = base || "the configured API";
+    if (isLocalPage) {
+      return `Cannot reach API at ${apiTarget}. Start it with \`source .venv/bin/activate && blog-agent-api\`, then retry.`;
+    }
+    return `Cannot reach API at ${apiTarget}. Set \`VITE_API_BASE_URL\` to your deployed API URL if your API is hosted separately.`;
   }
   if (status === 404 || raw === "Not found") {
     return "API route not found. Restart `blog-agent-api`.";
@@ -538,9 +544,13 @@ function resolveApiBaseUrl() {
     return configured.replace(/\/+$/, "");
   }
   if (typeof window === "undefined") return "";
+  const { hostname, port } = window.location;
   const runningInKnownProxyDevHost =
-    window.location.hostname === "127.0.0.1" && window.location.port === "4173";
-  return runningInKnownProxyDevHost ? "" : "http://127.0.0.1:8124";
+    (hostname === "127.0.0.1" || hostname === "localhost") && port === "4173";
+  if (runningInKnownProxyDevHost) return "";
+
+  const runningLocallyWithoutProxy = hostname === "127.0.0.1" || hostname === "localhost";
+  return runningLocallyWithoutProxy ? "http://127.0.0.1:8124" : "";
 }
 
 function resolveApiUrl(path) {

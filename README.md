@@ -113,6 +113,27 @@ This repo now supports a single-process cloud deploy: the Python API serves both
    - `MYSHOPIFY_DOMAIN`
 4. Deploy and open your Render URL.
 
+## Netlify frontend + Python backend
+
+Use this if you want the UI on Netlify and the API on a separate host (Render or Railway).
+
+1. Deploy backend first:
+   - Render: use `render.yaml` at repo root.
+   - Railway: use `railway.toml` at repo root.
+2. Confirm backend health:
+   - `GET https://<your-backend-domain>/api/health` returns `{ "ok": true }`.
+3. Deploy frontend to Netlify:
+   - Build command: `npm run build`
+   - Publish directory: `dist`
+   - `netlify.toml` in this repo already sets both.
+4. In Netlify Site Settings -> Environment Variables, set:
+   - `VITE_API_BASE_URL=https://<your-backend-domain>`
+5. Redeploy the Netlify site.
+
+Notes:
+- `VITE_API_BASE_URL` must be the backend origin only (no trailing slash, no `/api` suffix).
+- The API already returns CORS headers, so cross-origin requests from Netlify are allowed.
+
 Generate a four-week draft pipeline by API:
 
 ```bash
