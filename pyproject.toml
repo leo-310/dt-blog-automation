@@ -1,0 +1,27 @@
+[project]
+name = "doctor-towels-blog-agent"
+version = "0.1.0"
+description = "Daily SEO blog writer for Doctor Towels"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "httpx>=0.27.0",
+  "markdown>=3.7",
+  "pydantic>=2.8.0",
+  "pytrends>=4.9",
+  "pyyaml>=6.0.2",
+]
+
+[project.scripts]
+blog-agent = "blog_agent.cli:main"
+blog-agent-api = "blog_agent.api:main"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

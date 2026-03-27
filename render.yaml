@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: blog-agent
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: BLOG_AGENT_API_HOST
+        value: 0.0.0.0
+      - key: BLOG_AGENT_API_PORT
+        value: 10000
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SHOPIFY_CLIENT_ID
+        sync: false
+      - key: SHOPIFY_CLIENT_SECRET
+        sync: false
+      - key: MYSHOPIFY_DOMAIN
+        sync: false
+

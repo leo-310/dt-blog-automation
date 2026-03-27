@@ -1,0 +1,29 @@
+# AI Visibility Report
+
+- Generated: 2026-03-26T15:53:44
+- Domain: doctortowels.com
+- Aggregate visibility score: 0/100
+- Mentions: 0
+- Cited pages: 0
+
+## Prompt Set
+- [generic] best face drying routine for sensitive skin (weight 1.0)
+- [generic] should you air dry your face if you have acne (weight 1.0)
+- [generic] are certain towels better for acne-prone skin (weight 1.0)
+- [generic] microfiber vs cotton for acne-prone skin (weight 1.0)
+- [generic] are rough towels bad for acne (weight 1.0)
+- [branded] doctor towels reviews and alternatives (weight 0.35)
+
+## Providers
+### Gemini (gemini-2.0-flash)
+- Enabled: False
+- Score: 0/100
+- Error: GEMINI_API_KEY not set.
+### Perplexity (sonar)
+- Enabled: False
+- Score: 0/100
+- Error: PERPLEXITY_API_KEY not set.
+### Claude (claude-3-7-sonnet-latest)
+- Enabled: False
+- Score: 0/100
+- Error: ANTHROPIC_API_KEY not set.

@@ -1,0 +1,43 @@
+history:
+- title: Can Your Towel Cause Acne? What to Know About Face-Drying Habits
+  slug: can-your-towel-cause-acne-what-to-know-about-face-drying-habits
+  query: can your towel cause acne
+  cluster: Towel hygiene and breakouts
+  created_on: '2026-03-26'
+  output_path: /Users/cherubin/Desktop/blog agent/content/posts/2026-03-26-can-your-towel-cause-acne-what-to-know-about-face-drying-habits.md
+- title: How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?
+  slug: how-often-change-face-towel-acne-prone-skin
+  query: how often should you change your face towel if you have acne
+  cluster: Towel hygiene and breakouts
+  created_on: '2026-03-26'
+  output_path: /Users/cherubin/Desktop/blog agent/content/posts/2026-03-26-how-often-change-face-towel-acne-prone-skin.md
+- title: How to Dry Your Face Without Irritating Acne
+  slug: how-to-dry-your-face-without-irritating-acne
+  query: how to dry your face without irritating acne
+  cluster: Sensitive skin routines
+  created_on: '2026-03-26'
+  output_path: /Users/cherubin/Desktop/blog agent/content/posts/2026-03-26-how-to-dry-your-face-without-irritating-acne.md
+- title: What Towel Is Best for Acne-Prone Skin?
+  slug: what-towel-is-best-for-acne-prone-skin
+  query: what towel is best for acne
+  cluster: Acne-safe towels
+  created_on: '2026-03-28'
+  output_path: /Users/cherubin/Desktop/blog agent/content/posts/2026-03-28-what-towel-is-best-for-acne-prone-skin.md
+- title: 'Towel Bacteria on Your Face: The Hygiene Step That Can Undercut Your Routine'
+  slug: towel-bacteria-face-hygiene-step
+  query: towel bacteria face
+  cluster: Towel Acne Trigger Core
+  created_on: '2026-03-26'
+  output_path: /Users/cherubin/Desktop/blog agent/content/posts/2026-03-26-towel-bacteria-face-hygiene-step.md
+- title: Why Your Jawline Keeps Breaking Out After You Wash Your Face
+  slug: jawline-breakouts-after-washing-face-towel-friction
+  query: jawline acne after washing face
+  cluster: custom
+  created_on: '2026-03-26'
+  output_path: /Users/cherubin/Desktop/blog agent/content/posts/2026-03-26-jawline-breakouts-after-washing-face-towel-friction.md
+- title: 'Why Your Face Feels Worse After Drying: The Towel Friction Check'
+  slug: why-your-face-feels-worse-after-drying-towel-friction-check
+  query: why does my face feel irritated after using a towel
+  cluster: custom
+  created_on: '2026-03-29'
+  output_path: /Users/cherubin/Desktop/blog agent/content/posts/2026-03-29-why-your-face-feels-worse-after-drying-towel-friction-check.md

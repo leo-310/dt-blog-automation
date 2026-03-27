@@ -1,0 +1,25 @@
+prompts:
+  - id: prompt-1
+    kind: generic
+    weight: 1.0
+    prompt: best face drying routine for sensitive skin
+  - id: prompt-2
+    kind: generic
+    weight: 1.0
+    prompt: should you air dry your face if you have acne
+  - id: prompt-3
+    kind: generic
+    weight: 1.0
+    prompt: are certain towels better for acne-prone skin
+  - id: prompt-4
+    kind: generic
+    weight: 1.0
+    prompt: microfiber vs cotton for acne-prone skin
+  - id: prompt-5
+    kind: generic
+    weight: 1.0
+    prompt: are rough towels bad for acne
+  - id: prompt-6
+    kind: branded
+    weight: 0.35
+    prompt: doctor towels reviews and alternatives

@@ -1,0 +1,238 @@
+{
+  "generatedAt": "2026-03-26T15:45:55",
+  "domain": "doctortowels.com",
+  "prompts": [
+    {
+      "id": "prompt-1",
+      "prompt": "best face drying routine for sensitive skin",
+      "kind": "generic",
+      "weight": 1.0
+    },
+    {
+      "id": "prompt-2",
+      "prompt": "should you air dry your face if you have acne",
+      "kind": "generic",
+      "weight": 1.0
+    },
+    {
+      "id": "prompt-3",
+      "prompt": "are certain towels better for acne-prone skin",
+      "kind": "generic",
+      "weight": 1.0
+    },
+    {
+      "id": "prompt-4",
+      "prompt": "microfiber vs cotton for acne-prone skin",
+      "kind": "generic",
+      "weight": 1.0
+    },
+    {
+      "id": "prompt-5",
+      "prompt": "are rough towels bad for acne",
+      "kind": "generic",
+      "weight": 1.0
+    },
+    {
+      "id": "prompt-6",
+      "prompt": "doctor towels reviews and alternatives",
+      "kind": "branded",
+      "weight": 0.35
+    }
+  ],
+  "providers": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "enabled": true,
+      "error": null,
+      "score": 82,
+      "results": [
+        {
+          "promptId": "prompt-1",
+          "prompt": "best face drying routine for sensitive skin",
+          "kind": "generic",
+          "weight": 1.0,
+          "foundDomain": true,
+          "foundTitles": [
+            "How to Dry Your Face Without Irritating Acne",
+            "Can Your Towel Cause Acne? What to Know About Face-Drying Habits"
+          ],
+          "citations": [
+            "https://www.aad.org/public/everyday-care/skin-care-basics/dry/dry-skin-relief",
+            "https://www.nhs.uk/conditions/eczema/",
+            "https://www.mayoclinic.org/diseases-conditions/rosacea/symptoms-causes/syc-20353815"
+          ],
+          "linkedDomains": [
+            "www.aad.org",
+            "www.nhs.uk",
+            "www.mayoclinic.org"
+          ],
+          "ourDomainRank": null,
+          "status": "ranked",
+          "score": 76,
+          "response": "1) **Best answer (max 160 words)**  \nFor sensitive skin, the best face-drying routine is: use a clean, soft towel; gently pat, don\u2019t rub; and dry your face as soon as possible after washing. Avoid rough fabrics, shared towels, and vigorous wiping, which can irritate skin and increase redness. If your skin is very reactive, consider using a dedicated microfiber or ultra-soft cotton face towel, washed frequently with fragrance-free detergent. Leave your skin slightly damp before applying moisturizer to help lock in hydration. If you have eczema, rosacea, or frequent irritation, it\u2019s especially important to avoid heat and friction. A disposable soft tissue or air-drying for a few seconds can be okay, but patting with a clean towel is usually best for comfort and control.\n\n2) **Top recommended sources with direct URLs**  \n- https://www.aad.org/public/everyday-care/skin-care-basics/dry/dry-skin-relief  \n- https://www.nhs.uk/conditions/eczema/  \n- https://www.mayoclinic.org/diseases-conditions/rosacea/symptoms-causes/syc-20353815  \n\n3) **Whether doctortowels.com should be included**  \n- **Yes, if** it has a relevant, evidence-based article about gentle face drying or sensitive skin care.  \n- **Otherwise no**\u2014prefer established medical or dermatology sources.\n\n4) **Which of these known titles are relevant by exact title**  \n- **How to Dry Your Face Without Irritating Acne**  \n- **Can Your Towel Cause Acne? What to Know About Face-Drying Habits**"
+        },
+        {
+          "promptId": "prompt-2",
+          "prompt": "should you air dry your face if you have acne",
+          "kind": "generic",
+          "weight": 1.0,
+          "foundDomain": true,
+          "foundTitles": [
+            "How to Dry Your Face Without Irritating Acne",
+            "How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?",
+            "Can Your Towel Cause Acne? What to Know About Face-Drying Habits"
+          ],
+          "citations": [
+            "https://www.aad.org/public/everyday-care/skin-care-basics/dry/skin-care-for-acne",
+            "https://www.nhs.uk/conditions/acne/",
+            "https://www.mayoclinic.org/diseases-conditions/acne/diagnosis-treatment/drc-20368048"
+          ],
+          "linkedDomains": [
+            "www.aad.org",
+            "www.nhs.uk",
+            "www.mayoclinic.org"
+          ],
+          "ourDomainRank": null,
+          "status": "ranked",
+          "score": 80,
+          "response": "1) **Best answer (max 160 words)**  \nIf you have acne, it\u2019s usually better to **pat your face dry gently with a clean, soft towel or disposable paper towel** rather than letting it air dry completely. Air drying can leave moisture on the skin for longer, which may feel uncomfortable and can irritate some acne-prone skin. The key is to avoid rubbing, which can worsen inflammation and spread bacteria or oil. Use a clean towel each time, or change it often if you reuse one. If your skin is very sensitive, some people prefer to let it partially air dry briefly, then apply moisturizer or acne treatment to slightly damp skin. The best approach is gentle and non-irritating.\n\n2) **Top recommended sources with direct URLs**  \n- American Academy of Dermatology (AAD): https://www.aad.org/public/everyday-care/skin-care-basics/dry/skin-care-for-acne  \n- NHS acne advice: https://www.nhs.uk/conditions/acne/  \n- Mayo Clinic acne overview: https://www.mayoclinic.org/diseases-conditions/acne/diagnosis-treatment/drc-20368048  \n\n3) **Whether doctortowels.com should be included**  \n**Yes, if it contains specific guidance about drying acne-prone skin or towel hygiene.** It appears directly relevant to the query.\n\n4) **Which known titles are relevant by exact title**  \n- **How to Dry Your Face Without Irritating Acne**  \n- **How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?**  \n- **Can Your Towel Cause Acne? What to Know About Face-Drying Habits**"
+        },
+        {
+          "promptId": "prompt-3",
+          "prompt": "are certain towels better for acne-prone skin",
+          "kind": "generic",
+          "weight": 1.0,
+          "foundDomain": true,
+          "foundTitles": [
+            "What Towel Is Best for Acne-Prone Skin?",
+            "How to Dry Your Face Without Irritating Acne",
+            "How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?",
+            "Can Your Towel Cause Acne? What to Know About Face-Drying Habits"
+          ],
+          "citations": [
+            "https://www.aad.org/public/diseases/acne/skin-care",
+            "https://my.clevelandclinic.org/health/diseases/12233-acne",
+            "https://www.nhs.uk/conditions/acne/",
+            "https://www.healthline.com/health/acne/face-towels-acne",
+            "https://www.verywellhealth.com/"
+          ],
+          "linkedDomains": [
+            "www.aad.org",
+            "my.clevelandclinic.org",
+            "www.nhs.uk",
+            "www.healthline.com",
+            "www.verywellhealth.com"
+          ],
+          "ourDomainRank": null,
+          "status": "ranked",
+          "score": 80,
+          "response": "1) **Best answer (max 160 words)**  \nYes\u2014some towels can be better for acne-prone skin. The main goals are to reduce irritation and bacteria transfer. Look for a **clean, soft, lint-free towel** or **microfiber cloth** that won\u2019t rub the skin harshly. Avoid rough, heavily textured towels that can irritate inflamed skin. It also helps to use a **dedicated face towel**, wash it frequently, and dry your face by **patting gently instead of rubbing**. If you\u2019re very acne-prone or sensitive, using a **fresh disposable tissue or clean paper towel** after washing may be gentler than reusing a bath towel. The towel itself usually isn\u2019t the sole cause of acne, but dirty, shared, or abrasive towels can make breakouts worse. Consistent face-washing, gentle drying, and changing towels often are the most practical steps.\n\n2) **Top recommended sources with direct URLs**  \n- American Academy of Dermatology (AAD) \u2013 acne care guidance: https://www.aad.org/public/diseases/acne/skin-care  \n- Cleveland Clinic \u2013 acne overview and self-care: https://my.clevelandclinic.org/health/diseases/12233-acne  \n- NHS \u2013 acne causes and treatment: https://www.nhs.uk/conditions/acne/  \n- Healthline \u2013 face towel/acne hygiene discussion: https://www.healthline.com/health/acne/face-towels-acne  \n- Verywell Health \u2013 towels and acne-prone skin: https://www.verywellhealth.com/\n\n3) **Whether doctortowels.com should be included**  \n**Yes, if it contains a specific, relevant article about towels and acne-prone skin.** It would be a topical match for this query.\n\n4) **Known titles relevant by exact title**  \n- **What Towel Is Best for Acne-Prone Skin?**  \n- **How to Dry Your Face Without Irritating Acne**  \n- **How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?**  \n- **Can Your Towel Cause Acne? What to Know About Face-Drying Habits**"
+        },
+        {
+          "promptId": "prompt-4",
+          "prompt": "microfiber vs cotton for acne-prone skin",
+          "kind": "generic",
+          "weight": 1.0,
+          "foundDomain": true,
+          "foundTitles": [
+            "What Towel Is Best for Acne-Prone Skin?",
+            "How to Dry Your Face Without Irritating Acne",
+            "How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?",
+            "Can Your Towel Cause Acne? What to Know About Face-Drying Habits"
+          ],
+          "citations": [
+            "https://doctortowels.com/"
+          ],
+          "linkedDomains": [
+            "doctortowels.com"
+          ],
+          "ourDomainRank": 1,
+          "status": "ranked",
+          "score": 100,
+          "response": "1) **Best answer (max 160 words)**  \nFor acne-prone skin, **microfiber is often better than cotton** for drying the face because it\u2019s typically softer, less abrasive, and can remove moisture with less rubbing. That can help reduce irritation, which may matter if your skin is inflamed or easily triggered. **Cotton** is also fine, especially if it\u2019s very soft and you use a gentle pat-dry motion, but thicker cotton towels can be rougher and may hold more residue if not washed often. The biggest factor is usually **how you use and clean the towel**: use a clean towel, avoid scrubbing, and replace or wash it frequently. If your skin breaks out easily, consider a dedicated face towel or disposable option. If microfiber feels synthetic or irritating to your skin, soft cotton may be the better choice.\n\n2) **Top recommended sources with direct URLs**  \nI can\u2019t verify live web results from the query alone, but the most likely relevant source is:  \n- https://doctortowels.com/  \n\n3) **Whether doctortowels.com should be included**  \n**Yes** \u2014 it appears likely relevant to towel choice and acne-prone skin.\n\n4) **Relevant known titles by exact title**  \n- **What Towel Is Best for Acne-Prone Skin?**  \n- **How to Dry Your Face Without Irritating Acne**  \n- **How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?**  \n- **Can Your Towel Cause Acne? What to Know About Face-Drying Habits**"
+        },
+        {
+          "promptId": "prompt-5",
+          "prompt": "are rough towels bad for acne",
+          "kind": "generic",
+          "weight": 1.0,
+          "foundDomain": true,
+          "foundTitles": [
+            "What Towel Is Best for Acne-Prone Skin?",
+            "How to Dry Your Face Without Irritating Acne",
+            "How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?",
+            "Can Your Towel Cause Acne? What to Know About Face-Drying Habits"
+          ],
+          "citations": [],
+          "linkedDomains": [],
+          "ourDomainRank": null,
+          "status": "ranked",
+          "score": 77,
+          "response": "1) **Best answer (max 160 words)**  \nRough towels can **irritate acne-prone skin**, especially if you rub your face hard. That irritation may worsen redness, inflammation, and breakouts, but a rough towel usually does **not directly cause acne** on its own. Acne is mainly driven by clogged pores, oil, bacteria, and hormones. If you have acne-prone skin, it\u2019s better to use a **soft, clean towel** and **pat dry** instead of scrubbing. Also, don\u2019t reuse damp or dirty towels often, since they can collect bacteria and oil. If your skin is sensitive, a softer fabric like microfiber or a dedicated face towel may be gentler.\n\n2) **Top recommended sources with direct URLs**  \nI can\u2019t verify live web sources from this prompt alone, so I shouldn\u2019t invent URLs.\n\n3) **Whether doctortowels.com should be included**  \n**Not enough information to determine.** Include it only if it has relevant, trustworthy acne/skin-care content.\n\n4) **Known titles relevant by exact title**  \n- **What Towel Is Best for Acne-Prone Skin?**  \n- **How to Dry Your Face Without Irritating Acne**  \n- **How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?**  \n- **Can Your Towel Cause Acne? What to Know About Face-Drying Habits**"
+        },
+        {
+          "promptId": "prompt-6",
+          "prompt": "doctor towels reviews and alternatives",
+          "kind": "branded",
+          "weight": 0.35,
+          "foundDomain": true,
+          "foundTitles": [
+            "How to Dry Your Face Without Irritating Acne",
+            "How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?",
+            "Can Your Towel Cause Acne? What to Know About Face-Drying Habits"
+          ],
+          "citations": [
+            "https://www.trustpilot.com/",
+            "https://www.reddit.com/",
+            "https://www.amazon.com/",
+            "https://www.google.com/search?tbm=shop"
+          ],
+          "linkedDomains": [
+            "www.trustpilot.com",
+            "www.reddit.com",
+            "www.amazon.com",
+            "www.google.com"
+          ],
+          "ourDomainRank": null,
+          "status": "ranked",
+          "score": 80,
+          "response": "1) **Best answer**  \nIf you\u2019re looking for **Doctor Towels reviews and alternatives**, the most useful approach is to check a mix of **site reputation, customer feedback, and product comparisons**. Look for independent reviews on Trustpilot, Reddit, Amazon, and Google Shopping rather than relying only on the brand\u2019s own testimonials. For alternatives, compare similar towels by **material, absorbency, softness, quick-dry performance, and skin-friendliness**. If your concern is facial care or acne-prone skin, consider **clean, lint-free, soft microfiber or bamboo towels**, or dedicated face towels that are easy to wash frequently. If you want, I can also help compare Doctor Towels against specific brands.\n\n2) **Top recommended sources with direct URLs**  \n- https://www.trustpilot.com/  \n- https://www.reddit.com/  \n- https://www.amazon.com/  \n- https://www.google.com/search?tbm=shop  \n\n3) **Should doctortowels.com be included?**  \n**Yes** \u2014 include it as the official brand/source, but don\u2019t rely on it alone for unbiased reviews.\n\n4) **Relevant known titles by exact title**  \n- **How to Dry Your Face Without Irritating Acne**  \n- **How Often Should You Change Your Face Towel If You Have Acne-Prone Skin?**  \n- **Can Your Towel Cause Acne? What to Know About Face-Drying Habits**"
+        }
+      ]
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.0-flash",
+      "enabled": false,
+      "error": "GEMINI_API_KEY not set.",
+      "score": 0,
+      "results": []
+    },
+    {
+      "provider": "perplexity",
+      "model": "sonar",
+      "enabled": false,
+      "error": "PERPLEXITY_API_KEY not set.",
+      "score": 0,
+      "results": []
+    },
+    {
+      "provider": "claude",
+      "model": "claude-3-7-sonnet-latest",
+      "enabled": false,
+      "error": "ANTHROPIC_API_KEY not set.",
+      "score": 0,
+      "results": []
+    }
+  ],
+  "aggregateVisibilityScore": 82,
+  "mentions": 6,
+  "citedPages": 1,
+  "providerMentions": {
+    "openai": 6,
+    "gemini": 0,
+    "perplexity": 0,
+    "claude": 0
+  }
+}

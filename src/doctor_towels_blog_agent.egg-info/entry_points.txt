@@ -1,0 +1,3 @@
+[console_scripts]
+blog-agent = blog_agent.cli:main
+blog-agent-api = blog_agent.api:main

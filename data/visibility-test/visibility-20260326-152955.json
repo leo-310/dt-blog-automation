@@ -1,0 +1,42 @@
+{
+  "generatedAt": "2026-03-26T15:29:55",
+  "domain": "doctortowels.com",
+  "topics": [
+    "acne-safe towels"
+  ],
+  "providers": [
+    {
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "enabled": false,
+      "error": "OPENAI_API_KEY not set.",
+      "score": 0,
+      "results": []
+    },
+    {
+      "provider": "gemini",
+      "model": "gemini-2.0-flash",
+      "enabled": false,
+      "error": "GEMINI_API_KEY not set.",
+      "score": 0,
+      "results": []
+    },
+    {
+      "provider": "perplexity",
+      "model": "sonar",
+      "enabled": false,
+      "error": "PERPLEXITY_API_KEY not set.",
+      "score": 0,
+      "results": []
+    },
+    {
+      "provider": "claude",
+      "model": "claude-3-7-sonnet-latest",
+      "enabled": false,
+      "error": "ANTHROPIC_API_KEY not set.",
+      "score": 0,
+      "results": []
+    }
+  ],
+  "aggregateVisibilityScore": 0
+}

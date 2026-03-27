@@ -1,0 +1,229 @@
+clusters:
+  - name: Towel Acne Trigger Core
+    intent: informational
+    pillar_id: pillar-1
+    pillar_name: Your Towel Is the Invisible Acne Trigger
+    pillar_claim: The thing touching your face after every wash can quietly undo your skincare routine.
+    main_topic: Your Towel Is the Invisible Acne Trigger
+    sub_blog_tag: towel-acne-trigger
+    cadence_weight: 5
+    supporting_keywords:
+      - does my towel cause acne
+      - can dirty towels cause breakouts
+      - towel bacteria face
+      - face towel hygiene
+      - best way to dry face after washing
+    queries:
+      - does my towel cause acne
+      - can dirty towels cause breakouts
+      - towel bacteria face
+    notes: Flagship traffic capture cluster with high volume and low competition.
+
+  - name: Towel Hygiene Routine Gaps
+    intent: informational
+    pillar_id: pillar-1
+    pillar_name: Your Towel Is the Invisible Acne Trigger
+    pillar_claim: The thing touching your face after every wash can quietly undo your skincare routine.
+    main_topic: Your Towel Is the Invisible Acne Trigger
+    sub_blog_tag: towel-hygiene-routine
+    cadence_weight: 5
+    supporting_keywords:
+      - how often to wash face towel
+      - should i use a new towel every day
+      - face towel hygiene mistakes
+      - dirty towel skin irritation
+      - why is my skincare not working
+    queries:
+      - how often to wash face towel
+      - should i use a new towel every day
+      - face towel hygiene mistakes
+    notes: Behavior-change content tied to practical daily habits.
+
+  - name: Forum and Myth Intercepts
+    intent: informational
+    pillar_id: pillar-1
+    pillar_name: Your Towel Is the Invisible Acne Trigger
+    pillar_claim: The thing touching your face after every wash can quietly undo your skincare routine.
+    main_topic: Your Towel Is the Invisible Acne Trigger
+    sub_blog_tag: towel-acne-forum-style
+    cadence_weight: 4
+    supporting_keywords:
+      - towel acne reddit
+      - bacteria on towels study
+      - why is my skincare not working
+      - overlooked acne triggers
+    queries:
+      - towel acne reddit
+      - bacteria on towels study
+      - why is my skincare not working
+    notes: Forum-style discovery and myth-busting pages that capture conversational search demand.
+
+  - name: Skin Barrier and Microbiome Fundamentals
+    intent: informational
+    pillar_id: pillar-2
+    pillar_name: The Skin Barrier Is Everything and Your Fabric Is Breaking It
+    pillar_claim: Fabric contact can disrupt the skin barrier and microbiome as much as topical routine mistakes.
+    main_topic: The Skin Barrier Is Everything and Your Fabric Is Breaking It
+    sub_blog_tag: skin-barrier-microbiome
+    cadence_weight: 3
+    supporting_keywords:
+      - skin microbiome towel
+      - how to protect skin microbiome
+      - what disrupts skin barrier
+      - skin barrier damage causes
+    queries:
+      - skin microbiome towel
+      - how to protect skin microbiome
+      - what disrupts skin barrier
+    notes: Science and credibility pillar for trust with search engines and AI answer engines.
+
+  - name: Fabric Friction and Mechanical Stress
+    intent: informational
+    pillar_id: pillar-2
+    pillar_name: The Skin Barrier Is Everything and Your Fabric Is Breaking It
+    pillar_claim: Fabric contact can disrupt the skin barrier and microbiome as much as topical routine mistakes.
+    main_topic: The Skin Barrier Is Everything and Your Fabric Is Breaking It
+    sub_blog_tag: fabric-friction-skin
+    cadence_weight: 3
+    supporting_keywords:
+      - does fabric affect skin barrier
+      - mechanical irritation skin
+      - sensitive skin triggers
+      - overlooked acne triggers
+    queries:
+      - does fabric affect skin barrier
+      - mechanical irritation skin
+      - sensitive skin triggers
+    notes: Connects towel texture and friction to irritation and barrier resilience.
+
+  - name: Trend Integrations and Routine Context
+    intent: comparison
+    pillar_id: pillar-2
+    pillar_name: The Skin Barrier Is Everything and Your Fabric Is Breaking It
+    pillar_claim: Fabric contact can disrupt the skin barrier and microbiome as much as topical routine mistakes.
+    main_topic: The Skin Barrier Is Everything and Your Fabric Is Breaking It
+    sub_blog_tag: routine-trend-context
+    cadence_weight: 2
+    supporting_keywords:
+      - Korean skincare towel
+      - skinimalism routine 2026
+      - why isn't my skincare routine working
+      - skin barrier repair and towel hygiene
+    queries:
+      - Korean skincare towel
+      - skinimalism routine 2026
+      - why isn't my skincare routine working
+    notes: Hooks into trend terms while reinforcing barrier-first education.
+
+  - name: Gym Towel Acne Root Cause
+    intent: informational
+    pillar_id: pillar-3
+    pillar_name: Gym Skin The Body Acne Problem Nobody Is Solving
+    pillar_claim: Reused gym towels can push sweat and bacteria into pores and trigger body breakouts.
+    main_topic: Gym Skin The Body Acne Problem Nobody Is Solving
+    sub_blog_tag: gym-towel-acne
+    cadence_weight: 2
+    supporting_keywords:
+      - gym towel acne
+      - body acne from gym
+      - back acne workout
+      - chest acne gym
+    queries:
+      - gym towel acne
+      - body acne from gym
+      - back acne workout
+    notes: Core gym audience acquisition cluster with distinct user intent from face skincare.
+
+  - name: Post-Workout Hygiene Systems
+    intent: informational
+    pillar_id: pillar-3
+    pillar_name: Gym Skin The Body Acne Problem Nobody Is Solving
+    pillar_claim: Reused gym towels can push sweat and bacteria into pores and trigger body breakouts.
+    main_topic: Gym Skin The Body Acne Problem Nobody Is Solving
+    sub_blog_tag: post-workout-hygiene
+    cadence_weight: 2
+    supporting_keywords:
+      - post workout skincare routine
+      - gym hygiene tips skin
+      - how to prevent breakouts from working out
+      - gym bag essentials skin
+    queries:
+      - post workout skincare routine
+      - gym hygiene tips skin
+      - how to prevent breakouts from working out
+    notes: Habit-sequence pages for workout cleanup routines and prevention workflows.
+
+  - name: Gym Fabric and Fungal Risk
+    intent: informational
+    pillar_id: pillar-3
+    pillar_name: Gym Skin The Body Acne Problem Nobody Is Solving
+    pillar_claim: Reused gym towels can push sweat and bacteria into pores and trigger body breakouts.
+    main_topic: Gym Skin The Body Acne Problem Nobody Is Solving
+    sub_blog_tag: gym-fabric-risk
+    cadence_weight: 1
+    supporting_keywords:
+      - best gym towel for acne
+      - fungal acne gym towel
+      - does sweat cause acne
+    queries:
+      - best gym towel for acne
+      - fungal acne gym towel
+      - does sweat cause acne
+    notes: Material and infection-risk context for advanced gym-hygiene education.
+
+  - name: Prevention-First Skincare Framework
+    intent: informational
+    pillar_id: pillar-4
+    pillar_name: Proactive Hygiene The Future of Skincare Is Prevention
+    pillar_claim: Prevention through daily hygiene tools is the next phase of acne care.
+    main_topic: Proactive Hygiene The Future of Skincare Is Prevention
+    sub_blog_tag: proactive-skincare-framework
+    cadence_weight: 2
+    supporting_keywords:
+      - how to prevent acne
+      - proactive skincare routine
+      - acne prevention tools
+      - skincare routine overlooked steps
+    queries:
+      - how to prevent acne
+      - proactive skincare routine
+      - skincare routine overlooked steps
+    notes: Sets up prevention narrative and positions hygiene tools as baseline routine inputs.
+
+  - name: Clinical Hygiene and Derm Guidance
+    intent: informational
+    pillar_id: pillar-4
+    pillar_name: Proactive Hygiene The Future of Skincare Is Prevention
+    pillar_claim: Prevention through daily hygiene tools is the next phase of acne care.
+    main_topic: Proactive Hygiene The Future of Skincare Is Prevention
+    sub_blog_tag: derm-hygiene-guidance
+    cadence_weight: 2
+    supporting_keywords:
+      - dermatologist recommended acne prevention
+      - what towel do dermatologists recommend
+      - clinical hygiene tools for acne prevention
+      - hygiene products for acne
+    queries:
+      - dermatologist recommended acne prevention
+      - what towel do dermatologists recommend
+      - hygiene products for acne
+    notes: Citation-heavy guidance pages for authority and trust.
+
+  - name: Textile Solution Discovery
+    intent: comparison
+    pillar_id: pillar-4
+    pillar_name: Proactive Hygiene The Future of Skincare Is Prevention
+    pillar_claim: Prevention through daily hygiene tools is the next phase of acne care.
+    main_topic: Proactive Hygiene The Future of Skincare Is Prevention
+    sub_blog_tag: textile-solution-discovery
+    cadence_weight: 1
+    supporting_keywords:
+      - antibacterial towel for skin
+      - best face towel for sensitive skin
+      - clinically tested towel
+      - best towel for acne prone skin
+    queries:
+      - antibacterial towel for skin
+      - best face towel for sensitive skin
+      - best towel for acne prone skin
+    notes: BOFU-adjacent comparison and solution content designed for both human and AI assistants.

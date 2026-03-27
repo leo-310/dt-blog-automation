@@ -1,0 +1,76 @@
+{
+  "generatedAt": "2026-03-26T15:53:44",
+  "domain": "doctortowels.com",
+  "prompts": [
+    {
+      "id": "prompt-1",
+      "prompt": "best face drying routine for sensitive skin",
+      "kind": "generic",
+      "weight": 1.0
+    },
+    {
+      "id": "prompt-2",
+      "prompt": "should you air dry your face if you have acne",
+      "kind": "generic",
+      "weight": 1.0
+    },
+    {
+      "id": "prompt-3",
+      "prompt": "are certain towels better for acne-prone skin",
+      "kind": "generic",
+      "weight": 1.0
+    },
+    {
+      "id": "prompt-4",
+      "prompt": "microfiber vs cotton for acne-prone skin",
+      "kind": "generic",
+      "weight": 1.0
+    },
+    {
+      "id": "prompt-5",
+      "prompt": "are rough towels bad for acne",
+      "kind": "generic",
+      "weight": 1.0
+    },
+    {
+      "id": "prompt-6",
+      "prompt": "doctor towels reviews and alternatives",
+      "kind": "branded",
+      "weight": 0.35
+    }
+  ],
+  "providers": [
+    {
+      "provider": "gemini",
+      "model": "gemini-2.0-flash",
+      "enabled": false,
+      "error": "GEMINI_API_KEY not set.",
+      "score": 0,
+      "results": []
+    },
+    {
+      "provider": "perplexity",
+      "model": "sonar",
+      "enabled": false,
+      "error": "PERPLEXITY_API_KEY not set.",
+      "score": 0,
+      "results": []
+    },
+    {
+      "provider": "claude",
+      "model": "claude-3-7-sonnet-latest",
+      "enabled": false,
+      "error": "ANTHROPIC_API_KEY not set.",
+      "score": 0,
+      "results": []
+    }
+  ],
+  "aggregateVisibilityScore": 0,
+  "mentions": 0,
+  "citedPages": 0,
+  "providerMentions": {
+    "gemini": 0,
+    "perplexity": 0,
+    "claude": 0
+  }
+}
