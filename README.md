@@ -216,6 +216,29 @@ Use a custom prompt file if needed:
 blog-agent visibility --prompt-file ./data/visibility_prompts.yaml
 ```
 
+## Supabase backup for blog entries (including images)
+
+Use Supabase to persist all generated pipeline/blog entries (plus base64 image data) so deploy restarts do not lose your content.
+
+1. In Supabase SQL Editor, run:
+   - `sql/supabase_blog_entries.sql`
+2. Set these env vars in your API host and locally:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_BLOG_TABLE` (optional, defaults to `blog_entries`)
+   - `SUPABASE_SYNC_CHUNK_SIZE` (optional, defaults to `3`)
+3. Sync existing local data:
+
+```bash
+source .venv/bin/activate
+blog-agent supabase-sync
+```
+
+The sync upserts each pipeline item by `pipeline_id` and includes:
+- pipeline/topic status fields
+- markdown body/frontmatter
+- generated image filename + mime type + base64
+
 ## Notes
 
 - The agent is intentionally conservative about medical and scientific claims.

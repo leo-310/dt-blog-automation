@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .agent import BlogAgent
 from .config import AgentConfig
+from .supabase_sync import sync_blog_entries_to_supabase
 from .visibility import run_visibility_scan, write_visibility_report
 
 
@@ -57,6 +58,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Provider to run. Repeat for multiple. Allowed: openai, gemini, perplexity, claude.",
     )
+
+    subparsers.add_parser(
+        "supabase-sync",
+        help="Upsert local pipeline/posts/images into Supabase table.",
+    )
     return parser
 
 
@@ -85,6 +91,11 @@ def main() -> None:
         print(f"Aggregate visibility score: {report.get('aggregateVisibilityScore', 0)}/100")
         print(f"JSON report: {json_path}")
         print(f"Markdown report: {md_path}")
+        return
+
+    if args.command == "supabase-sync":
+        count, table = sync_blog_entries_to_supabase(config)
+        print(f"Synced {count} entries to Supabase table `{table}`.")
         return
 
 
