@@ -87,18 +87,13 @@ curl -G "http://127.0.0.1:8124/api/keyword-research" \
 Run the React UI:
 
 ```bash
-source .venv/bin/activate
-blog-agent-api
-```
-
-In another terminal:
-
-```bash
 npm install
 npm run dev
 ```
 
 Then open `http://127.0.0.1:4173`.
+
+The UI is now browser-native: it seeds itself from `data/pipeline.yaml` and `data/keyword_clusters.yaml`, then persists your changes in `localStorage`. No Python API is required for the local interface.
 
 ## Cloud deploy (single service)
 
@@ -113,26 +108,17 @@ This repo now supports a single-process cloud deploy: the Python API serves both
    - `MYSHOPIFY_DOMAIN`
 4. Deploy and open your Render URL.
 
-## Netlify frontend + Python backend
+## Netlify frontend
 
-Use this if you want the UI on Netlify and the API on a separate host (Render or Railway).
+The React app can deploy as a static site because it no longer depends on `/api/*` routes for the local editorial workflow.
 
-1. Deploy backend first:
-   - Render: use `render.yaml` at repo root.
-   - Railway: use `railway.toml` at repo root.
-2. Confirm backend health:
-   - `GET https://<your-backend-domain>/api/health` returns `{ "ok": true }`.
-3. Deploy frontend to Netlify:
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-   - `netlify.toml` in this repo already sets both.
-4. In Netlify Site Settings -> Environment Variables, set:
-   - `VITE_API_BASE_URL=https://<your-backend-domain>`
-5. Redeploy the Netlify site.
+1. Deploy the repo to Netlify.
+2. Build command: `npm run build`
+3. Publish directory: `dist`
 
 Notes:
-- `VITE_API_BASE_URL` must be the backend origin only (no trailing slash, no `/api` suffix).
-- The API already returns CORS headers, so cross-origin requests from Netlify are allowed.
+- `netlify.toml` already points at the Vite build output.
+- Local edits are stored per-browser, so production users do not share pipeline state unless you add a separate persistence layer later.
 
 Generate a four-week draft pipeline by API:
 
@@ -158,7 +144,7 @@ cd "/Users/cherubin/Desktop/blog agent" && ./run_daily.sh
 - `data/sources/`: product knowledge, research notes, customer language, competitor gaps
 - `data/keyword_clusters.yaml`: topic universe
 - `prompts/`: planning and writing behavior
-- `blog-agent-api`: JSON API used by the React UI
+- `blog-agent-api`: optional Python API for CLI/server workflows
 - `/api/keyword-research`: Google Trends-backed keyword discovery endpoint
 - `/api/images/generate`: OpenAI image generation endpoint (defaults: `gpt-image-1.5`, `low`, landscape `1536x1024`)
   - Uses `BLOG_AGENT_IMAGE_PROMPT_MODEL` (default `gpt-5.4-mini`) to write a topic-aware abstract art-direction prompt before image generation.

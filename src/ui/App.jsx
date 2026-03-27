@@ -1,78 +1,38 @@
 import { useEffect, useMemo, useState } from "react";
-
-const API_BASE_URL = resolveApiBaseUrl();
+import {
+  approveTopic,
+  generateCoverImage as generateLocalCoverImage,
+  generateTopics as generateLocalTopics,
+  loadWorkspace,
+  persistWorkspace,
+  pushTopic,
+  rejectTopic,
+  resetWorkspace
+} from "./lib/browserData";
 
 const emptyState = {
-  loading: true,
+  loading: false,
   generating: false,
   generatingImage: false,
   runningTransition: false,
   operationMessage: "",
   blogCount: 4,
-  pipeline: [],
-  pillars: [],
-  selectedPillarId: "",
-  selectedId: "",
-  shopifyBlogs: [],
-  selectedBlogId: "",
+  ...createWorkspaceState(loadWorkspace()),
   error: "",
-  banner: "",
+  banner: "Browser-native workspace ready. Changes persist in this browser only.",
   retryTask: null
 };
 
 export function App() {
-  const [state, setState] = useState(emptyState);
+  const [state, setState] = useState(() => emptyState);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      const [pipelineResult, pillarsResult, blogsResult] = await Promise.all([
-        fetchJsonSafe("/api/pipeline"),
-        fetchJsonSafe("/api/pillars"),
-        fetchJsonSafe("/api/shopify/blogs")
-      ]);
-
-      if (cancelled) return;
-      if (!pipelineResult.ok) {
-        setState((current) => ({
-          ...current,
-          loading: false,
-          error: normalizeApiError(
-            pipelineResult.status,
-            pipelineResult.data?.error || pipelineResult.error,
-            "Unable to load pipeline."
-          )
-        }));
-        return;
-      }
-
-      const pillars = pillarsResult.ok ? pillarsResult.data.pillars || [] : [];
-      const selectedPillarId = pillars[0]?.pillarId || "";
-      const pipeline = pipelineResult.data.pipeline || [];
-      const firstForPillar =
-        pipeline.find((item) => !item.status?.includes("rejected") && item.pillar_id === selectedPillarId) || null;
-
-      const shopifyBlogs = blogsResult.ok ? blogsResult.data.blogs || [] : [];
-
-      setState((current) => ({
-        ...current,
-        loading: false,
-        pillars,
-        pipeline,
-        selectedPillarId: current.selectedPillarId || selectedPillarId,
-        selectedId: current.selectedId || firstForPillar?.id || "",
-        shopifyBlogs,
-        selectedBlogId: current.selectedBlogId || shopifyBlogs[0]?.id || "",
-        error: blogsResult.ok ? "" : normalizeApiError(blogsResult.status, blogsResult.data?.error, "")
-      }));
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    persistWorkspace({
+      pillars: state.pillars,
+      pipeline: state.pipeline,
+      shopifyBlogs: state.shopifyBlogs
+    });
+  }, [state.pillars, state.pipeline, state.shopifyBlogs]);
 
   const activePillar = useMemo(
     () => state.pillars.find((pillar) => pillar.pillarId === state.selectedPillarId) || state.pillars[0],
@@ -97,24 +57,6 @@ export function App() {
     null;
   const controlsDisabled = state.generating || state.runningTransition || state.generatingImage;
 
-  async function refreshPipeline() {
-    const result = await fetchJsonSafe("/api/pipeline");
-    if (!result.ok) {
-      throw new Error(
-        normalizeApiError(result.status, result.data?.error || result.error, "Unable to refresh pipeline.")
-      );
-    }
-    const nextPipeline = result.data.pipeline || [];
-    setState((current) => ({
-      ...current,
-      pipeline: nextPipeline,
-      selectedId: nextPipeline.some((item) => item.id === current.selectedId)
-        ? current.selectedId
-        : nextPipeline.find((item) => item.status !== "rejected" && item.pillar_id === current.selectedPillarId)
-            ?.id || ""
-    }));
-  }
-
   async function generateTopics(role) {
     setState((current) => ({
       ...current,
@@ -127,25 +69,29 @@ export function App() {
     }));
     try {
       const count = role === "main" ? 1 : state.blogCount;
-      const result = await fetchJsonSafe("/api/pipeline/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          count,
-          role,
-          pillarId: selectedPillarId
-        })
-      });
-      if (!result.ok) {
-        throw new Error(normalizeApiError(result.status, result.data?.error || result.error, "Unable to generate topics."));
-      }
+      const result = await runNativeTask(() =>
+        generateLocalTopics(
+          {
+            pillars: state.pillars,
+            pipeline: state.pipeline,
+            shopifyBlogs: state.shopifyBlogs,
+            clusters: loadWorkspace().clusters
+          },
+          {
+            count,
+            role,
+            pillarId: selectedPillarId
+          }
+        )
+      );
+
       setState((current) => ({
         ...current,
         generating: false,
         operationMessage: "",
-        pipeline: result.data.pipeline,
-        selectedId: result.data.created?.[0]?.id || current.selectedId,
-        banner: result.data.message || "Topics generated.",
+        pipeline: result.workspace.pipeline,
+        selectedId: result.created?.[0]?.id || current.selectedId,
+        banner: result.message || "Topics generated.",
         retryTask: null
       }));
     } catch (error) {
@@ -178,31 +124,34 @@ export function App() {
       retryTask: null
     }));
     try {
-      const payload = action === "approve" || action === "push"
-        ? {
-            pillarId: selectedPillarId,
-            ...(action === "push" ? { blogId: state.selectedBlogId } : {})
-          }
-        : undefined;
-      const result = await fetchJsonSafe(`/api/pipeline/${selectedItem.id}/${action}`, {
-        method: "POST",
-        headers: payload ? { "Content-Type": "application/json" } : undefined,
-        body: payload ? JSON.stringify(payload) : undefined
+      const nextWorkspace = await runNativeTask(() => {
+        const workspace = {
+          pillars: state.pillars,
+          pipeline: state.pipeline,
+          shopifyBlogs: state.shopifyBlogs,
+          clusters: loadWorkspace().clusters
+        };
+
+        if (action === "approve") {
+          return approveTopic(workspace, { id: selectedItem.id, pillarId: selectedPillarId });
+        }
+        if (action === "push") {
+          return pushTopic(workspace, { id: selectedItem.id, blogId: state.selectedBlogId });
+        }
+        return rejectTopic(workspace, { id: selectedItem.id });
       });
-      if (!result.ok) {
-        throw new Error(normalizeApiError(result.status, result.data?.error || result.error, "Action failed."));
-      }
-      await refreshPipeline();
+
       const banner =
         action === "approve"
-          ? "Topic approved and full blog generated."
+          ? "Topic approved and full blog preview generated locally."
           : action === "push"
-            ? "Blog published live to Shopify."
+            ? "Blog marked as pushed in browser-native mode."
             : "Topic rejected.";
       setState((current) => ({
         ...current,
         runningTransition: false,
         operationMessage: "",
+        pipeline: nextWorkspace.pipeline,
         retryTask: null,
         banner
       }));
@@ -228,22 +177,26 @@ export function App() {
       retryTask: null
     }));
     try {
-      const result = await fetchJsonSafe("/api/images/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          pipelineId: selected.id
-        })
-      });
-      if (!result.ok) {
-        throw new Error(normalizeApiError(result.status, result.data?.error || result.error, "Unable to generate image."));
-      }
-      await refreshPipeline();
+      const nextWorkspace = await runNativeTask(() =>
+        generateLocalCoverImage(
+          {
+            pillars: state.pillars,
+            pipeline: state.pipeline,
+            shopifyBlogs: state.shopifyBlogs,
+            clusters: loadWorkspace().clusters
+          },
+          {
+            id: selected.id
+          }
+        )
+      );
+
       setState((current) => ({
         ...current,
         generatingImage: false,
         operationMessage: "",
-        banner: "Cover image generated with gpt-image-1.5 (low, landscape).",
+        pipeline: nextWorkspace.pipeline,
+        banner: "Cover image generated locally as an SVG preview.",
         retryTask: null
       }));
     } catch (error) {
@@ -267,18 +220,6 @@ export function App() {
       setState((current) => ({ ...current, selectedId: retryTask.selectedId }));
       handleTransition(retryTask.action, retryTask.selectedId);
     }
-  }
-
-  if (state.loading) {
-    return (
-      <div className="app-shell">
-        <section className="panel pillar-library loading-panel" aria-live="polite" aria-busy="true">
-          <div className="spinner" />
-          <h2>Preparing your blog workspace</h2>
-          <p>Loading pillars, pipeline topics, and Shopify destinations.</p>
-        </section>
-      </div>
-    );
   }
 
   return (
@@ -312,6 +253,22 @@ export function App() {
             </button>
             <button className="primary-button" onClick={() => generateTopics("side")} disabled={controlsDisabled}>
               {state.generating ? "Generating..." : "Generate Topics"}
+            </button>
+            <button
+              className="secondary-button"
+              onClick={() => {
+                const workspace = resetWorkspace();
+                setState((current) => ({
+                  ...current,
+                  ...createWorkspaceState(workspace),
+                  banner: "Workspace reset to the repo seed data.",
+                  error: "",
+                  retryTask: null
+                }));
+              }}
+              disabled={controlsDisabled}
+            >
+              Reset Workspace
             </button>
           </div>
         </div>
@@ -443,7 +400,7 @@ export function App() {
 
                 {selected.generatedImageUrl ? (
                   <figure className="generated-image-block">
-                    <img src={resolveApiUrl(selected.generatedImageUrl)} alt={`${selected.title} cover`} loading="lazy" />
+                    <img src={selected.generatedImageUrl} alt={`${selected.title} cover`} loading="lazy" />
                   </figure>
                 ) : null}
 
@@ -495,67 +452,24 @@ function MetaCard({ label, value }) {
   );
 }
 
-function normalizeApiError(status, raw, fallback) {
-  if (status === 0) {
-    const isLocalPage =
-      typeof window !== "undefined" &&
-      (window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost");
-    const base = API_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "");
-    const apiTarget = base || "the configured API";
-    if (isLocalPage) {
-      return `Cannot reach API at ${apiTarget}. Start it with \`source .venv/bin/activate && blog-agent-api\`, then retry.`;
-    }
-    return `Cannot reach API at ${apiTarget}. Set \`VITE_API_BASE_URL\` to your deployed API URL if your API is hosted separately.`;
-  }
-  if (status === 404 || raw === "Not found") {
-    return "API route not found. Restart `blog-agent-api`.";
-  }
-  return raw || fallback;
+function createWorkspaceState(workspace) {
+  const selectedPillarId = workspace.pillars[0]?.pillarId || "";
+  const selectedId =
+    workspace.pipeline.find((item) => item.status !== "rejected" && item.pillar_id === selectedPillarId)?.id || "";
+
+  return {
+    pillars: workspace.pillars,
+    pipeline: workspace.pipeline,
+    selectedPillarId,
+    selectedId,
+    shopifyBlogs: workspace.shopifyBlogs,
+    selectedBlogId: workspace.shopifyBlogs[0]?.id || ""
+  };
 }
 
-async function fetchJsonSafe(url, options) {
-  try {
-    const response = await fetch(resolveApiUrl(url), options);
-    const text = await response.text();
-    let data = {};
-    if (text.trim()) {
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = {};
-      }
-    }
-    const error = !response.ok && !data.error ? text.trim() : "";
-    return { ok: response.ok, status: response.status, data, error };
-  } catch (error) {
-    const message = error instanceof Error ? error.message.trim() : "";
-    return {
-      ok: false,
-      status: 0,
-      data: {},
-      error: message || "Network error"
-    };
-  }
-}
-
-function resolveApiBaseUrl() {
-  const configured = (import.meta.env.VITE_API_BASE_URL || "").trim();
-  if (configured) {
-    return configured.replace(/\/+$/, "");
-  }
-  if (typeof window === "undefined") return "";
-  const { hostname, port } = window.location;
-  const runningInKnownProxyDevHost =
-    (hostname === "127.0.0.1" || hostname === "localhost") && port === "4173";
-  if (runningInKnownProxyDevHost) return "";
-
-  const runningLocallyWithoutProxy = hostname === "127.0.0.1" || hostname === "localhost";
-  return runningLocallyWithoutProxy ? "http://127.0.0.1:8124" : "";
-}
-
-function resolveApiUrl(path) {
-  if (!path) return path;
-  if (/^https?:\/\//i.test(path)) return path;
-  if (!path.startsWith("/")) return path;
-  return `${API_BASE_URL}${path}`;
+async function runNativeTask(task) {
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, 180);
+  });
+  return task();
 }
