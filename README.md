@@ -225,8 +225,10 @@ Use Supabase to persist all generated pipeline/blog entries (plus base64 image d
 2. Set these env vars in your API host and locally:
    - `SUPABASE_URL`
    - `SUPABASE_SERVICE_ROLE_KEY`
-   - `SUPABASE_BLOG_TABLE` (optional, defaults to `blog_entries`)
+   - `SUPABASE_BLOG_TABLE` (optional, defaults to `table_name`)
+   - `SUPABASE_LOGICAL_NAMESPACE` (optional, defaults to `pillar_architecture_blog_entries`)
    - `SUPABASE_SYNC_CHUNK_SIZE` (optional, defaults to `3`)
+   - `BLOG_AGENT_USE_SUPABASE_NAMESPACE` (set to `1` on deployed API)
 3. Sync existing local data:
 
 ```bash

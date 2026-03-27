@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from wsgiref.simple_server import make_server
 
+import httpx
 import markdown
 
 from .agent import BlogAgent
@@ -48,6 +49,17 @@ class BlogAgentApi:
         self.agent = BlogAgent(self.config)
         self.keyword_research = KeywordResearchService()
         self.shopify = ShopifyPublisher()
+        self.supabase_url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+        self.supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+        self.supabase_table = os.getenv("SUPABASE_BLOG_TABLE", "table_name").strip() or "table_name"
+        self.supabase_namespace = (
+            os.getenv("SUPABASE_LOGICAL_NAMESPACE", "pillar_architecture_blog_entries").strip()
+            or "pillar_architecture_blog_entries"
+        )
+        self.use_supabase_namespace = env_flag(
+            "BLOG_AGENT_USE_SUPABASE_NAMESPACE",
+            default=bool(self.supabase_url and self.supabase_service_role_key),
+        )
         ensure_directories([CONTENT_DIR, GENERATED_IMAGE_DIR])
 
     def wsgi_app(self, environ, start_response):
@@ -224,6 +236,11 @@ class BlogAgentApi:
         return None
 
     def load_pipeline_items(self) -> list[dict]:
+        if self.use_supabase_namespace:
+            supabase_items = self.load_pipeline_items_from_supabase()
+            if supabase_items:
+                return supabase_items
+
         posts_lookup = {post["id"]: post for post in self.load_posts()}
         pipeline_items = load_pipeline(self.config.pipeline_file)
         clusters = load_keyword_clusters(self.config.topic_file)
@@ -248,6 +265,80 @@ class BlogAgentApi:
                     "hasGeneratedDraft": bool(item.post_id),
                 }
             )
+        return payload
+
+    def load_pipeline_items_from_supabase(self) -> list[dict]:
+        rows = self.load_supabase_namespace_rows()
+        if not rows:
+            return []
+
+        payload: list[dict] = []
+        for row in rows:
+            metadata = row.get("pipeline_metadata") or {}
+            import_source = str(metadata.get("import_source", "")).strip()
+            if import_source in {"pillar-definitions", "local-images"}:
+                continue
+            if str(row.get("sub_blog_tag", "")).strip() == "pillar-definition":
+                continue
+
+            image_base64 = str(row.get("generated_image_base64", "")).strip()
+            image_mime = str(row.get("generated_image_mime_type", "")).strip() or "image/png"
+            image_file = str(row.get("generated_image_file", "")).strip()
+            image_url = ""
+            if image_base64:
+                image_url = f"data:{image_mime};base64,{image_base64}"
+            elif image_file:
+                image_url = f"/api/images/{image_file}"
+
+            frontmatter = row.get("post_frontmatter") or {}
+            post_markdown = str(row.get("post_markdown", "") or "")
+
+            payload.append(
+                {
+                    "id": row.get("pipeline_id", ""),
+                    "post_id": row.get("post_id"),
+                    "title": row.get("title", ""),
+                    "query": row.get("query", ""),
+                    "cluster": row.get("cluster", ""),
+                    "pillar_id": row.get("pillar_id", ""),
+                    "pillar_name": row.get("pillar_name", ""),
+                    "pillar_claim": row.get("pillar_claim", ""),
+                    "main_topic": row.get("main_topic", ""),
+                    "sub_blog_tag": row.get("sub_blog_tag", ""),
+                    "is_pillar_head": bool(row.get("is_pillar_head", False)),
+                    "pillar_head_post_id": row.get("pillar_head_post_id"),
+                    "pillar_head_slug": row.get("pillar_head_slug"),
+                    "planned_keywords": row.get("planned_keywords") or [],
+                    "path": row.get("path"),
+                    "scheduled_for": row.get("scheduled_for"),
+                    "status": row.get("status", "topic"),
+                    "topic_role": row.get("topic_role", "side"),
+                    "created_at": row.get("created_at"),
+                    "approved_at": row.get("approved_at"),
+                    "pushed_at": row.get("pushed_at"),
+                    "shopify_article_id": row.get("shopify_article_id"),
+                    "shopify_blog_id": row.get("shopify_blog_id"),
+                    "shopify_article_handle": row.get("shopify_article_handle"),
+                    "topic_angle": row.get("topic_angle", ""),
+                    "topic_outline": row.get("topic_outline") or [],
+                    "topic_internal_links": row.get("topic_internal_links") or [],
+                    "guideline_report": row.get("guideline_report"),
+                    "metadata": metadata,
+                    "html": render_post_html(post_markdown, self.config.website_url) if post_markdown else "",
+                    "excerpt": str(frontmatter.get("excerpt", "")),
+                    "description": str(frontmatter.get("description", "")),
+                    "generatedImageUrl": image_url,
+                    "generatedImageStyle": str(metadata.get("generated_image_style", "")),
+                    "hasGeneratedDraft": bool(post_markdown or row.get("post_id")),
+                }
+            )
+        payload.sort(
+            key=lambda item: (
+                str(item.get("scheduled_for", "")),
+                str(item.get("created_at", "")),
+            ),
+            reverse=True,
+        )
         return payload
 
     def generate_pipeline_image(self, *, prompt: str, pipeline_id: str | None) -> dict:
@@ -294,6 +385,11 @@ class BlogAgentApi:
         }
 
     def load_pillars(self) -> list[dict]:
+        if self.use_supabase_namespace:
+            supabase_pillars = self.load_pillars_from_supabase()
+            if supabase_pillars:
+                return supabase_pillars
+
         clusters = load_keyword_clusters(self.config.topic_file)
         grouped: dict[str, dict] = {}
         for cluster in clusters:
@@ -308,6 +404,48 @@ class BlogAgentApi:
                 }
             grouped[pillar_id]["clusters"].append(cluster.model_dump(mode="json"))
         return list(grouped.values())
+
+    def load_pillars_from_supabase(self) -> list[dict]:
+        rows = self.load_supabase_namespace_rows()
+        grouped: dict[str, dict] = {}
+        for row in rows:
+            pillar_id = str(row.get("pillar_id", "")).strip()
+            if not pillar_id:
+                continue
+            if pillar_id not in grouped:
+                grouped[pillar_id] = {
+                    "pillarId": pillar_id,
+                    "pillarName": row.get("pillar_name", ""),
+                    "pillarClaim": row.get("pillar_claim", ""),
+                    "mainTopic": row.get("main_topic", ""),
+                    "clusters": [],
+                }
+        return list(grouped.values())
+
+    def load_supabase_namespace_rows(self) -> list[dict]:
+        if not self.supabase_url or not self.supabase_service_role_key:
+            return []
+        endpoint = f"{self.supabase_url}/rest/v1/{self.supabase_table}"
+        headers = {
+            "apikey": self.supabase_service_role_key,
+            "Authorization": f"Bearer {self.supabase_service_role_key}",
+        }
+        params = {"select": "data"} if self.supabase_table == "table_name" else {"select": "*"}
+        if self.supabase_table == "table_name":
+            params["name"] = f"eq.{self.supabase_namespace}"
+        try:
+            with httpx.Client(timeout=20.0) as client:
+                response = client.get(endpoint, headers=headers, params=params)
+            if response.status_code >= 300:
+                return []
+            payload = response.json()
+            if not isinstance(payload, list):
+                return []
+            if self.supabase_table == "table_name":
+                return [row.get("data", {}) for row in payload if isinstance(row, dict)]
+            return [row for row in payload if isinstance(row, dict)]
+        except Exception:  # noqa: BLE001
+            return []
 
     def load_hot_feed(self, topic_targets: list[str] | None = None) -> dict:
         pipeline = self.load_pipeline_items()
@@ -1347,6 +1485,18 @@ def normalize_origin(website_url: str) -> str:
         return ""
     scheme = parsed.scheme or "https"
     return f"{scheme}://{parsed.netloc}"
+
+
+def env_flag(name: str, *, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    cleaned = value.strip().lower()
+    if cleaned in {"1", "true", "yes", "on"}:
+        return True
+    if cleaned in {"0", "false", "no", "off"}:
+        return False
+    return default
 
 
 def rank_posts_for_topic(topic: str, posts: list[dict]) -> list[tuple[dict, float]]:

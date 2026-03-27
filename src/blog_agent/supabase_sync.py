@@ -11,7 +11,7 @@ import httpx
 
 from .config import AgentConfig, CONTENT_DIR
 from .models import PipelineItem
-from .storage import load_history, load_pipeline, parse_markdown_file
+from .storage import load_history, load_keyword_clusters, load_pipeline, parse_markdown_file
 
 GENERATED_IMAGE_DIR = CONTENT_DIR.parent / "images"
 
@@ -28,7 +28,7 @@ class SupabaseConfig:
     def from_env(cls) -> "SupabaseConfig":
         url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
         service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
-        table = os.getenv("SUPABASE_BLOG_TABLE", "blog_entries").strip() or "blog_entries"
+        table = os.getenv("SUPABASE_BLOG_TABLE", "table_name").strip() or "table_name"
         chunk_size = max(1, min(25, int(os.getenv("SUPABASE_SYNC_CHUNK_SIZE", "3"))))
         logical_namespace = (
             os.getenv("SUPABASE_LOGICAL_NAMESPACE", "pillar_architecture_blog_entries").strip()
@@ -253,6 +253,64 @@ def build_rows(config: AgentConfig) -> list[dict[str, Any]]:
                 "generated_image_file": image_path.name,
                 "generated_image_mime_type": mime,
                 "generated_image_base64": image_b64,
+            }
+        )
+
+    # Always include canonical pillar definitions so remote readers can render the
+    # full pillar architecture even when no recent pipeline rows exist for a pillar.
+    pillar_map: dict[str, dict[str, Any]] = {}
+    for cluster in load_keyword_clusters(config.topic_file):
+        pillar_id = str(cluster.pillar_id or "").strip()
+        if not pillar_id:
+            continue
+        if pillar_id not in pillar_map:
+            pillar_map[pillar_id] = {
+                "pillar_name": cluster.pillar_name,
+                "pillar_claim": cluster.pillar_claim,
+                "main_topic": cluster.main_topic,
+            }
+    for pillar_id, pillar in sorted(pillar_map.items()):
+        rows.append(
+            {
+                "pipeline_id": f"pillar-definition-{pillar_id}",
+                "post_id": None,
+                "title": f"{pillar.get('pillar_name') or pillar_id} (pillar definition)",
+                "query": "",
+                "cluster": "pillar-definition",
+                "pillar_id": pillar_id,
+                "pillar_name": pillar.get("pillar_name", ""),
+                "pillar_claim": pillar.get("pillar_claim", ""),
+                "main_topic": pillar.get("main_topic", ""),
+                "sub_blog_tag": "pillar-definition",
+                "is_pillar_head": False,
+                "pillar_head_post_id": None,
+                "pillar_head_slug": None,
+                "planned_keywords": [],
+                "path": "",
+                "scheduled_for": "1970-01-01",
+                "status": "topic",
+                "topic_role": "main",
+                "created_at": None,
+                "approved_at": None,
+                "pushed_at": None,
+                "shopify_article_id": None,
+                "shopify_blog_id": None,
+                "shopify_article_handle": None,
+                "topic_angle": "Pillar architecture definition",
+                "topic_outline": [],
+                "topic_internal_links": [],
+                "guideline_report": None,
+                "pipeline_metadata": {"import_source": "pillar-definitions"},
+                "post_frontmatter": None,
+                "post_markdown": "",
+                "history_title": None,
+                "history_slug": None,
+                "history_query": None,
+                "history_cluster": None,
+                "history_created_on": None,
+                "generated_image_file": "",
+                "generated_image_mime_type": "",
+                "generated_image_base64": "",
             }
         )
 
