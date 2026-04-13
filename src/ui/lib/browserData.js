@@ -18,6 +18,13 @@ function apiBase() {
   return custom;
 }
 
+function envApiBase() {
+  const value = typeof import.meta !== "undefined" && import.meta.env
+    ? import.meta.env.VITE_API_BASE_URL
+    : "";
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
 function inferDefaultApiBase() {
   if (typeof window === "undefined") return "";
   const { protocol, hostname, port } = window.location;
@@ -31,6 +38,8 @@ function inferDefaultApiBase() {
 function resolveApiBaseForAssets() {
   const configuredBase = apiBase();
   if (configuredBase) return configuredBase;
+  const envBase = envApiBase();
+  if (envBase) return envBase;
   return inferDefaultApiBase();
 }
 
@@ -69,12 +78,15 @@ export function setCustomApiBase(value) {
 
 async function request(path, options = {}) {
   const configuredBase = apiBase();
+  const envBase = envApiBase();
   const defaultBase = inferDefaultApiBase();
   const candidates = configuredBase
     ? [`${configuredBase}${path}`]
-    : defaultBase
-      ? [`${defaultBase}${path}`]
-      : [path];
+    : envBase
+      ? [`${envBase}${path}`]
+      : defaultBase
+        ? [`${defaultBase}${path}`]
+        : [path];
   let lastError = null;
 
   for (const url of candidates) {
