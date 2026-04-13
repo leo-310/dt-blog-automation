@@ -1,23 +1,32 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
-import base64
 import mimetypes
-from datetime import date, datetime, timedelta
+import socketserver
+import threading
+import time
+from datetime import UTC, date, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-from wsgiref.simple_server import make_server
+from wsgiref.simple_server import WSGIServer, make_server
 
 import httpx
 import markdown
 
 from .agent import BlogAgent
+from .automation import (
+    AutomationSettings,
+    build_post_run_updates,
+    evaluate_automation_schedule,
+)
 from .config import AgentConfig, CONTENT_DIR, ROOT_DIR
 from .keyword_research import KeywordResearchRequest, KeywordResearchService
 from .models import BlogPlan, KeywordCluster, PipelineItem
+from .notion_repo import NotionRepository
 from .provider import BlogAgentProvider
 from .shopify import ShopifyPublisher
 from .storage import (
@@ -32,13 +41,18 @@ from .visibility import load_latest_visibility_report
 
 GENERATED_IMAGE_DIR = CONTENT_DIR.parent / "images"
 DIST_DIR = ROOT_DIR / "dist"
+NOTION_STATE_FILE = ROOT_DIR / "data" / "notion_state.yaml"
+
+
+class ThreadingWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
+    daemon_threads = True
 
 
 def main() -> None:
     host = os.getenv("BLOG_AGENT_API_HOST", "0.0.0.0")
     port = int(os.getenv("BLOG_AGENT_API_PORT", os.getenv("PORT", "8124")))
     app = BlogAgentApi()
-    with make_server(host, port, app.wsgi_app) as server:
+    with make_server(host, port, app.wsgi_app, server_class=ThreadingWSGIServer) as server:
         print(f"Blog agent API running at http://{host}:{port}")
         server.serve_forever()
 
@@ -49,6 +63,12 @@ class BlogAgentApi:
         self.agent = BlogAgent(self.config)
         self.keyword_research = KeywordResearchService()
         self.shopify = ShopifyPublisher()
+        self.default_shopify_blog_id = os.getenv("SHOPIFY_DEFAULT_BLOG_ID", "").strip()
+        self.notion = NotionRepository(state_file=NOTION_STATE_FILE)
+        self.use_notion = env_flag(
+            "BLOG_AGENT_USE_NOTION",
+            default=self.notion.enabled,
+        )
         self.supabase_url = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
         self.supabase_service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
         self.supabase_table = os.getenv("SUPABASE_BLOG_TABLE", "table_name").strip() or "table_name"
@@ -60,7 +80,19 @@ class BlogAgentApi:
             "BLOG_AGENT_USE_SUPABASE_NAMESPACE",
             default=bool(self.supabase_url and self.supabase_service_role_key),
         )
+        self._automation_lock = threading.RLock()
+        self._background_loop_enabled = env_flag("BLOG_AGENT_BACKGROUND_LOOP", default=True)
+        self._background_loop_interval_seconds = max(
+            15,
+            int(os.getenv("BLOG_AGENT_BACKGROUND_LOOP_INTERVAL_SECONDS", "60") or "60"),
+        )
         ensure_directories([CONTENT_DIR, GENERATED_IMAGE_DIR])
+        if self._background_loop_enabled:
+            threading.Thread(
+                target=self._background_loop,
+                name="blog-agent-background-loop",
+                daemon=True,
+            ).start()
 
     def wsgi_app(self, environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET").upper()
@@ -76,6 +108,8 @@ class BlogAgentApi:
         try:
             if method == "GET" and parsed.path == "/api/health":
                 return self.respond(start_response, {"ok": True})
+            if method == "GET" and parsed.path == "/api/settings":
+                return self.respond(start_response, {"settings": self.load_settings()})
             if method == "GET" and parsed.path == "/api/posts":
                 return self.respond(start_response, {"posts": self.load_posts()})
             if method == "GET" and parsed.path == "/api/pipeline":
@@ -85,6 +119,15 @@ class BlogAgentApi:
                 )
             if method == "GET" and parsed.path == "/api/pillars":
                 return self.respond(start_response, {"pillars": self.load_pillars()})
+            if method == "GET" and parsed.path == "/api/notion/state":
+                return self.respond(
+                    start_response,
+                    {
+                        "enabled": self.use_notion and self.notion.enabled,
+                        "configured": self.notion.configured if self.use_notion else False,
+                        "state": self.notion._state_payload(status="current"),
+                    },
+                )
             if method == "GET" and parsed.path.startswith("/api/images/"):
                 image_name = parsed.path.removeprefix("/api/images/")
                 return self.serve_generated_image(start_response, image_name)
@@ -133,6 +176,31 @@ class BlogAgentApi:
                     {"post": created, "message": "Generated a new post."},
                     status=HTTPStatus.CREATED,
                 )
+            if method == "PUT" and parsed.path == "/api/settings":
+                payload = self.read_json_body(environ)
+                updated = self.update_settings(payload)
+                return self.respond(start_response, {"settings": updated})
+            if method == "POST" and parsed.path == "/api/notion/setup":
+                payload = self.read_json_body(environ)
+                parent_page_id = str(payload.get("parentPageId", "")).strip()
+                overwrite_existing = bool(payload.get("overwriteExisting", False))
+                result = self.setup_notion(parent_page_id=parent_page_id, overwrite_existing=overwrite_existing)
+                return self.respond(start_response, result, status=HTTPStatus.CREATED)
+            if method == "POST" and parsed.path == "/api/notion/migrate":
+                result = self.migrate_local_content_to_notion()
+                return self.respond(start_response, result)
+            if method == "POST" and parsed.path == "/api/notion/sync":
+                result = self.sync_pipeline_to_notion()
+                return self.respond(start_response, result)
+            if method == "POST" and parsed.path == "/api/notion/actions/run":
+                result = self.run_notion_actions()
+                return self.respond(start_response, result)
+            if method == "POST" and parsed.path == "/api/automation/run-now":
+                result = self.run_automation_now()
+                return self.respond(start_response, result, status=HTTPStatus.CREATED)
+            if method == "POST" and parsed.path == "/api/automation/tick":
+                result = self.automation_tick()
+                return self.respond(start_response, result)
             if method == "POST" and parsed.path == "/api/pipeline/generate":
                 payload = self.read_json_body(environ)
                 count = int(payload.get("count", payload.get("weeks", 4)))
@@ -141,17 +209,26 @@ class BlogAgentApi:
                 topic_role = str(payload.get("role", "side")).strip().lower()
                 if topic_role not in {"main", "side"}:
                     topic_role = "side"
+                required_keywords = normalize_requested_keywords(payload.get("keywords", []))
                 created = self.generate_pipeline(
                     count=count,
                     pillar_id=pillar_id,
                     topic_role=topic_role,
+                    required_keywords=required_keywords,
                 )
                 return self.respond(
                     start_response,
                     {
                         "created": created,
                         "pipeline": self.load_pipeline_items(),
-                        "message": f"Generated {len(created)} {topic_role} topic(s). Approve a topic to generate the full blog draft.",
+                        "message": (
+                            f"Generated {len(created)} {topic_role} topic(s). "
+                            + (
+                                f"Keyword focus applied: {', '.join(required_keywords)}."
+                                if required_keywords
+                                else "Auto-selected SEO keywords were applied."
+                            )
+                        ),
                     },
                     status=HTTPStatus.CREATED,
                 )
@@ -189,7 +266,7 @@ class BlogAgentApi:
         )
 
     def load_posts(self) -> list[dict]:
-        pipeline = load_pipeline(self.config.pipeline_file)
+        pipeline = self._load_pipeline_models()
         status_lookup = {item.post_id: item for item in pipeline if item.post_id}
         history = load_history(self.config.history_file)
         history_lookup = {Path(item.output_path).name: item for item in history}
@@ -227,7 +304,326 @@ class BlogAgentApi:
                 }
             )
 
+        if self.use_notion and self.notion.configured:
+            existing_ids = {post["id"] for post in posts}
+            for item in self.notion.load_pipeline_items():
+                post_markdown = str(item.get("post_markdown", "")).strip()
+                post_id = str(item.get("post_id", "")).strip()
+                if not post_markdown or not post_id or post_id in existing_ids:
+                    continue
+                posts.append(
+                    {
+                        "id": post_id,
+                        "title": str(item.get("title", post_id)),
+                        "description": str(item.get("description", "")),
+                        "excerpt": str(item.get("excerpt", "")),
+                        "date": str(item.get("scheduled_for", "")),
+                        "query": str(item.get("query", "")),
+                        "cluster": str(item.get("cluster", "")),
+                        "pillarName": str(item.get("pillar_name", "")),
+                        "mainTopic": str(item.get("main_topic", "")),
+                        "subBlogTag": str(item.get("sub_blog_tag", "")),
+                        "path": str(item.get("path") or ""),
+                        "pipelineStatus": str(item.get("status", "draft")),
+                        "guidelineReport": item.get("guideline_report"),
+                        "html": render_post_html(post_markdown, self.config.website_url),
+                    }
+                )
+                existing_ids.add(post_id)
+
         return posts
+
+    def load_settings(self) -> dict:
+        if self.use_notion and self.notion.configured:
+            return self.notion.load_settings()
+        return {
+            "enabled": True,
+            "dailyTime": "09:00",
+            "timezone": "Asia/Kolkata",
+            "runNow": False,
+            "lastRunAt": "",
+            "nextRunAt": "",
+            "notionLinks": {
+                "pillars": self.notion.state.pillars_db_url,
+                "blogs": self.notion.state.blog_pipeline_db_url,
+                "settings": self.notion.state.settings_db_url,
+            },
+        }
+
+    def update_settings(self, payload: dict) -> dict:
+        updates = payload.get("settings", payload)
+        clean = {
+            "enabled": bool(updates.get("enabled", True)),
+            "dailyTime": str(updates.get("dailyTime", "09:00")).strip() or "09:00",
+            "timezone": str(updates.get("timezone", "Asia/Kolkata")).strip() or "Asia/Kolkata",
+            "runNow": bool(updates.get("runNow", False)),
+            "lastRunAt": str(updates.get("lastRunAt", "")).strip(),
+            "nextRunAt": str(updates.get("nextRunAt", "")).strip(),
+        }
+        notion_links = updates.get("notionLinks") or {}
+        if isinstance(notion_links, dict):
+            clean["notionLinks"] = {
+                "pillars": str(notion_links.get("pillars", "")).strip(),
+                "blogs": str(notion_links.get("blogs", "")).strip(),
+                "settings": str(notion_links.get("settings", "")).strip(),
+            }
+
+        if self.use_notion and self.notion.configured:
+            return self.notion.update_settings(clean)
+        return {**self.load_settings(), **clean}
+
+    def setup_notion(self, *, parent_page_id: str, overwrite_existing: bool) -> dict:
+        if not self.use_notion:
+            raise RuntimeError("Enable Notion integration by setting BLOG_AGENT_USE_NOTION=1.")
+        pillars_seed = build_seo_pillars_seed(load_keyword_clusters(self.config.topic_file))
+        result = self.notion.setup_databases(
+            parent_page_id=parent_page_id,
+            pillars_seed=pillars_seed,
+            overwrite_existing=overwrite_existing,
+        )
+        settings = self.notion.update_settings(
+            {
+                "notionLinks": {
+                    "pillars": self.notion.state.pillars_db_url,
+                    "blogs": self.notion.state.blog_pipeline_db_url,
+                    "settings": self.notion.state.settings_db_url,
+                }
+            }
+        )
+        return {
+            "notion": result,
+            "settings": settings,
+        }
+
+    def migrate_local_content_to_notion(self) -> dict:
+        if not (self.use_notion and self.notion.configured):
+            raise RuntimeError("Notion is not configured. Run /api/notion/setup first.")
+        migrated = 0
+        pipeline = load_pipeline(self.config.pipeline_file)
+        for item in pipeline:
+            frontmatter: dict = {}
+            body_markdown = ""
+            if item.path:
+                path = Path(item.path)
+                if path.exists():
+                    frontmatter, body_markdown = parse_markdown_file(path)
+            self.notion.upsert_pipeline_item(
+                item,
+                post_frontmatter=frontmatter,
+                post_markdown=body_markdown,
+            )
+            migrated += 1
+        return {
+            "migrated": migrated,
+            "source": str(self.config.pipeline_file),
+            "targetDatabaseId": self.notion.state.blog_pipeline_db_id,
+        }
+
+    def sync_pipeline_to_notion(self) -> dict:
+        if not (self.use_notion and self.notion.configured):
+            raise RuntimeError("Notion is not configured. Run /api/notion/setup first.")
+        synced = 0
+        for item in self._load_pipeline_models():
+            frontmatter: dict = {}
+            body_markdown = ""
+            if item.path:
+                path = Path(item.path)
+                if path.exists():
+                    frontmatter, body_markdown = parse_markdown_file(path)
+            self.notion.upsert_pipeline_item(
+                item,
+                post_frontmatter=frontmatter,
+                post_markdown=body_markdown,
+            )
+            synced += 1
+        return {"synced": synced}
+
+    def run_automation_now(self) -> dict:
+        settings = self.load_settings()
+        settings["runNow"] = True
+        self.update_settings(settings)
+        return self.automation_tick(force=True)
+
+    def automation_tick(self, *, force: bool = False) -> dict:
+        with self._automation_lock:
+            notion_actions = self._run_notion_actions_impl()
+            settings_payload = self.load_settings()
+            schedule = AutomationSettings(
+                enabled=bool(settings_payload.get("enabled", True)),
+                daily_time=str(settings_payload.get("dailyTime", "09:00")),
+                timezone=str(settings_payload.get("timezone", "Asia/Kolkata")),
+                run_now=bool(settings_payload.get("runNow", False)),
+                last_run_at=str(settings_payload.get("lastRunAt", "")),
+                next_run_at=str(settings_payload.get("nextRunAt", "")),
+            )
+            decision = evaluate_automation_schedule(schedule, now_utc=datetime.now(UTC))
+            if force:
+                decision.should_run = True
+                decision.reason = "forced"
+            if not decision.should_run:
+                settings_payload["nextRunAt"] = decision.next_run_at
+                updated = self.update_settings(settings_payload)
+                return {
+                    "executed": False,
+                    "reason": decision.reason,
+                    "settings": updated,
+                    "notionActions": notion_actions,
+                }
+
+            generated = self.agent.generate_post()
+            self.upsert_pipeline_item(generated)
+            updates = build_post_run_updates(schedule, now_utc=datetime.now(UTC))
+            next_settings = {**settings_payload, **updates}
+            next_settings["nextRunAt"] = decision.next_run_at
+            updated = self.update_settings(next_settings)
+            return {
+                "executed": True,
+                "reason": decision.reason,
+                "generatedPostId": Path(generated.output_path).name,
+                "settings": updated,
+                "notionActions": notion_actions,
+            }
+
+    def run_notion_actions(self) -> dict:
+        with self._automation_lock:
+            return self._run_notion_actions_impl()
+
+    def _run_notion_actions_impl(self) -> dict:
+        if not (self.use_notion and self.notion.configured):
+            return {"executed": False, "reason": "notion_not_configured", "processed": 0, "approved": 0, "pushed": 0, "errors": 0}
+
+        processed = 0
+        attempted = 0
+        generated = 0
+        approved = 0
+        pushed = 0
+        errors = 0
+        error_details: list[dict[str, str]] = []
+
+        pipeline = self._load_pipeline_models()
+        actionable = [item for item in pipeline if is_action_candidate(item)]
+        ordered = sorted(
+            actionable,
+            key=lambda item: (
+                action_priority(item),
+                -created_at_sort_key(item.created_at),
+            ),
+        )
+        max_actions_per_run = int(os.getenv("BLOG_AGENT_NOTION_MAX_ACTIONS_PER_RUN", "20") or "20")
+
+        for item in ordered:
+            try:
+                metadata = item.metadata if isinstance(item.metadata, dict) else {}
+                requested_push = is_push_requested(item)
+                has_shopify_article = bool(item.shopify_article_id)
+
+                if should_auto_generate_from_notion_row(item):
+                    attempted += 1
+                    if not str(item.id or "").strip():
+                        notion_page_id = str(item.metadata.get("notion_page_id", "")).strip()
+                        item.id = notion_page_id or f"topic-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                    queued = bool(item.metadata.get("queued_generation", False))
+                    if not queued:
+                        item.title = "Generating blog..."
+                        if not str(item.query or "").strip():
+                            item.query = f"{item.pillar_name or item.pillar_id} {item.topic_role} blog".strip()
+                        item.metadata["notion_action_error"] = ""
+                        item.metadata["queued_generation"] = True
+                        self._persist_pipeline_item(item)
+                        queued = True
+                    blocked_queries = [entry.query for entry in pipeline if entry.id != item.id]
+                    plan, cluster = self.agent.plan_topic(
+                        blocked_queries=blocked_queries,
+                        preferred_pillar_id=item.pillar_id or None,
+                    )
+                    item.title = plan.title
+                    item.query = plan.target_query
+                    item.cluster = cluster.name
+                    item.pillar_id = cluster.pillar_id
+                    item.pillar_name = cluster.pillar_name
+                    item.main_topic = cluster.main_topic
+                    item.sub_blog_tag = cluster.sub_blog_tag
+                    item.topic_angle = plan.angle
+                    item.topic_outline = plan.outline
+                    item.topic_internal_links = plan.internal_links
+                    item.planned_keywords = plan.keywords_to_use or cluster.supporting_keywords[:8]
+                    item.metadata["slug"] = plan.slug
+                    item.metadata["meta_description"] = plan.meta_description
+                    item.metadata["queued_generation"] = False
+                    synchronize_pillar_hierarchy(pipeline=pipeline, pillar_id=item.pillar_id)
+                    self._persist_pipeline_item(item)
+                    processed += 1
+                    generated += 1
+                    if processed >= max_actions_per_run:
+                        break
+
+                needs_approve = item.status in {"approved", "pushed"} and not item.post_id
+
+                if needs_approve:
+                    attempted += 1
+                    self.transition_pipeline_item(item.id, "approve", {"pillarId": item.pillar_id})
+                    processed += 1
+                    approved += 1
+                    item = next((entry for entry in self._load_pipeline_models() if entry.id == item.id), item)
+                    if processed >= max_actions_per_run:
+                        break
+
+                if requested_push and not has_shopify_article:
+                    attempted += 1
+                    payload = {}
+                    blog_id = resolve_shopify_blog_id(
+                        item=item,
+                        shopify=self.shopify,
+                        default_shopify_blog_id=self.default_shopify_blog_id,
+                    )
+                    if blog_id:
+                        payload["blogId"] = blog_id
+                    self.transition_pipeline_item(item.id, "push", payload)
+                    processed += 1
+                    pushed += 1
+                    item = next((entry for entry in self._load_pipeline_models() if entry.id == item.id), item)
+                    if processed >= max_actions_per_run:
+                        break
+
+                if item.metadata.get("notion_action_error"):
+                    item.metadata["notion_action_error"] = ""
+                    if item.status == "pushed":
+                        item.metadata["ready_to_push"] = False
+                    self._persist_pipeline_item(item)
+            except Exception as exc:  # noqa: BLE001
+                errors += 1
+                if len(error_details) < 12:
+                    error_details.append(
+                        {
+                            "id": item.id,
+                            "status": item.status,
+                            "message": str(exc),
+                        }
+                    )
+                item.metadata["notion_action_error"] = str(exc)
+                if bool(item.metadata.get("queued_generation", False)):
+                    item.title = "Generation failed"
+                    item.metadata["queued_generation"] = False
+                self._persist_pipeline_item(item)
+
+        return {
+            "executed": True,
+            "processed": processed,
+            "attempted": attempted,
+            "generated": generated,
+            "approved": approved,
+            "pushed": pushed,
+            "errors": errors,
+            "errorDetails": error_details,
+        }
+
+    def _background_loop(self) -> None:
+        while True:
+            try:
+                self.automation_tick(force=False)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[background-loop] {exc}")
+            time.sleep(self._background_loop_interval_seconds)
 
     def load_post_by_name(self, name: str) -> dict | None:
         for post in self.load_posts():
@@ -236,6 +632,19 @@ class BlogAgentApi:
         return None
 
     def load_pipeline_items(self) -> list[dict]:
+        if self.use_notion and self.notion.configured:
+            notion_items = self.notion.load_pipeline_items()
+            for item in notion_items:
+                body_markdown = str(item.get("post_markdown", "")).strip()
+                if body_markdown and not item.get("html"):
+                    item["html"] = render_post_html(body_markdown, self.config.website_url)
+                item["generatedImageStyle"] = str(item.get("metadata", {}).get("generated_image_style", ""))
+                item["hasGeneratedDraft"] = bool(item.get("post_id") or body_markdown)
+                item.setdefault("excerpt", "")
+                item.setdefault("description", "")
+                hydrate_hierarchy_fields(item)
+            return notion_items
+
         if self.use_supabase_namespace:
             supabase_items = self.load_pipeline_items_from_supabase()
             if supabase_items:
@@ -265,6 +674,8 @@ class BlogAgentApi:
                     "hasGeneratedDraft": bool(item.post_id),
                 }
             )
+        for row in payload:
+            hydrate_hierarchy_fields(row)
         return payload
 
     def load_pipeline_items_from_supabase(self) -> list[dict]:
@@ -332,6 +743,8 @@ class BlogAgentApi:
                     "hasGeneratedDraft": bool(post_markdown or row.get("post_id")),
                 }
             )
+        for row in payload:
+            hydrate_hierarchy_fields(row)
         payload.sort(
             key=lambda item: (
                 str(item.get("scheduled_for", "")),
@@ -342,8 +755,10 @@ class BlogAgentApi:
         return payload
 
     def generate_pipeline_image(self, *, prompt: str, pipeline_id: str | None) -> dict:
-        pipeline = load_pipeline(self.config.pipeline_file)
+        pipeline = self._load_pipeline_models()
         item = next((entry for entry in pipeline if entry.id == pipeline_id), None) if pipeline_id else None
+        if item and item.status not in {"approved", "pushed"}:
+            raise RuntimeError("Approve the blog first, then generate or regenerate its cover image.")
         image_prompt = prompt or build_image_prompt(item=item, provider=self.agent.provider, config=self.config)
         if not image_prompt:
             raise RuntimeError("Provide `prompt` or `pipelineId` to generate an image.")
@@ -372,7 +787,7 @@ class BlogAgentApi:
             item.metadata["generated_image_file"] = image_name
             item.metadata["generated_image_prompt"] = image_prompt
             item.metadata["generated_image_style"] = "Custom Prompt" if prompt else "Topic-Aware Abstract"
-            save_pipeline(self.config.pipeline_file, pipeline)
+            self._persist_pipeline_item(item)
 
         return {
             "imageUrl": f"/api/images/{image_name}",
@@ -385,6 +800,25 @@ class BlogAgentApi:
         }
 
     def load_pillars(self) -> list[dict]:
+        if self.use_notion and self.notion.configured:
+            pillars = self.notion.load_pillars()
+            return [
+                {
+                    "pillarId": row.get("pillarId", ""),
+                    "pillarName": row.get("pillarName", ""),
+                    "pillarClaim": row.get("pillarThesis", ""),
+                    "mainTopic": row.get("pillarName", ""),
+                    "targetKeyword": row.get("targetKeyword", ""),
+                    "priority": row.get("priority", 999),
+                    "status": row.get("status", "active"),
+                    "clusters": [
+                        {"name": topic}
+                        for topic in row.get("clusterTopics", [])
+                    ],
+                }
+                for row in pillars
+            ]
+
         if self.use_supabase_namespace:
             supabase_pillars = self.load_pillars_from_supabase()
             if supabase_pillars:
@@ -544,17 +978,24 @@ class BlogAgentApi:
         count: int,
         pillar_id: str | None = None,
         topic_role: str = "side",
+        required_keywords: list[str] | None = None,
     ) -> list[dict]:
-        pipeline = load_pipeline(self.config.pipeline_file)
+        pipeline = self._load_pipeline_models()
         clusters = load_keyword_clusters(self.config.topic_file)
         start = date.today()
         created: list[dict] = []
+        enforced_keywords = normalize_requested_keywords(required_keywords or [])
         blocked_queries = [item.query for item in pipeline]
         for offset in range(count):
             target_date = start + timedelta(days=offset)
             plan, cluster = self.agent.plan_topic(
                 blocked_queries=blocked_queries,
                 preferred_pillar_id=pillar_id,
+            )
+            plan.keywords_to_use = merge_keyword_targets(
+                preferred=enforced_keywords,
+                planned=plan.keywords_to_use or [],
+                fallback=cluster.supporting_keywords[:12],
             )
             blocked_queries.append(plan.target_query)
             topic_id = f"topic-{target_date.isoformat()}-{offset}-{datetime.now().strftime('%H%M%S')}"
@@ -569,7 +1010,7 @@ class BlogAgentApi:
                 sub_blog_tag=cluster.sub_blog_tag,
                 pillar_head_post_id=None,
                 pillar_head_slug=None,
-                planned_keywords=plan.keywords_to_use or cluster.supporting_keywords[:8],
+                planned_keywords=plan.keywords_to_use,
                 scheduled_for=target_date,
                 status="topic",
                 topic_role="main" if topic_role == "main" else "side",
@@ -580,16 +1021,19 @@ class BlogAgentApi:
                 metadata={
                     "slug": plan.slug,
                     "meta_description": plan.meta_description,
+                    "required_keywords": enforced_keywords,
                 },
             )
             enrich_item_pillar_context(item=item, pillar_id=pillar_id or "", clusters=clusters)
             pipeline.append(item)
+            self._persist_pipeline_item(item, pipeline=pipeline)
             created.append(item.model_dump(mode="json"))
-        save_pipeline(self.config.pipeline_file, pipeline)
+        if not (self.use_notion and self.notion.configured):
+            save_pipeline(self.config.pipeline_file, pipeline)
         return created
 
     def upsert_pipeline_item(self, generated) -> PipelineItem:
-        pipeline = load_pipeline(self.config.pipeline_file)
+        pipeline = self._load_pipeline_models()
         post_id = Path(generated.output_path).name
         existing = next((item for item in pipeline if item.post_id == post_id), None)
         now = datetime.now().isoformat(timespec="seconds")
@@ -626,11 +1070,21 @@ class BlogAgentApi:
                     guideline_report=generated.guideline_report,
                 )
             )
-        save_pipeline(self.config.pipeline_file, pipeline)
-        return next(item for item in pipeline if item.post_id == post_id)
+        target = next(item for item in pipeline if item.post_id == post_id)
+        synchronize_pillar_hierarchy(pipeline=pipeline, pillar_id=target.pillar_id)
+        if self.use_notion and self.notion.configured:
+            frontmatter, body_markdown = parse_markdown_file(Path(target.path)) if target.path and Path(target.path).exists() else ({}, "")
+            self.notion.upsert_pipeline_item(
+                target,
+                post_frontmatter=frontmatter,
+                post_markdown=body_markdown,
+            )
+        else:
+            save_pipeline(self.config.pipeline_file, pipeline)
+        return target
 
     def transition_pipeline_item(self, pipeline_id: str, action: str, payload: dict | None = None) -> dict:
-        pipeline = load_pipeline(self.config.pipeline_file)
+        pipeline = self._load_pipeline_models()
         item = next((entry for entry in pipeline if entry.id == pipeline_id), None)
         if not item:
             raise RuntimeError("Pipeline item not found.")
@@ -643,7 +1097,7 @@ class BlogAgentApi:
             )
         now = datetime.now().isoformat(timespec="seconds")
         if action == "approve":
-            if item.status == "topic":
+            if not item.post_id:
                 ensure_sub_blog_has_main_blog_link(item=item, pipeline=pipeline)
                 plan = BlogPlan(
                     title=item.title,
@@ -681,11 +1135,19 @@ class BlogAgentApi:
             item.shopify_blog_id = None
             item.shopify_article_handle = None
         elif action == "push":
-            if item.status != "approved":
+            if item.status not in {"approved", "pushed"}:
                 raise RuntimeError("Only approved drafts can be pushed.")
+            if item.shopify_article_id and item.status == "pushed":
+                return {"item": item.model_dump(mode="json"), "message": "Already pushed."}
             if not item.post_id:
                 raise RuntimeError("Approve a topic first to generate its full blog content.")
             blog_id = str(payload.get("blogId", "")).strip()
+            if not blog_id:
+                blog_id = resolve_shopify_blog_id(
+                    item=item,
+                    shopify=self.shopify,
+                    default_shopify_blog_id=self.default_shopify_blog_id,
+                )
             if not blog_id:
                 raise RuntimeError("Missing blogId in request payload for push action.")
             if not self.shopify.enabled:
@@ -714,15 +1176,61 @@ class BlogAgentApi:
             item.shopify_article_id = article.get("id")
             item.shopify_blog_id = blog_id
             item.shopify_article_handle = article.get("handle")
-            save_pipeline(self.config.pipeline_file, pipeline)
+            item.metadata["ready_to_push"] = False
+            item.metadata["notion_action_error"] = ""
+            changed_items = synchronize_pillar_hierarchy(pipeline=pipeline, pillar_id=item.pillar_id)
+            for changed in changed_items:
+                if changed.id != item.id:
+                    self._persist_pipeline_item(changed, pipeline=pipeline)
+            self._persist_pipeline_item(item, pipeline=pipeline)
             return {
                 "item": item.model_dump(mode="json"),
                 "shopifyArticle": article,
             }
         else:
             raise RuntimeError("Unsupported pipeline action.")
-        save_pipeline(self.config.pipeline_file, pipeline)
+        changed_items = synchronize_pillar_hierarchy(pipeline=pipeline, pillar_id=item.pillar_id)
+        for changed in changed_items:
+            if changed.id != item.id:
+                self._persist_pipeline_item(changed, pipeline=pipeline)
+        self._persist_pipeline_item(item, pipeline=pipeline)
         return {"item": item.model_dump(mode="json")}
+
+    def _load_pipeline_models(self) -> list[PipelineItem]:
+        if self.use_notion and self.notion.configured:
+            return self.notion.load_pipeline_models()
+        return load_pipeline(self.config.pipeline_file)
+
+    def _persist_pipeline_item(
+        self,
+        item: PipelineItem,
+        *,
+        pipeline: list[PipelineItem] | None = None,
+    ) -> None:
+        if self.use_notion and self.notion.configured:
+            frontmatter: dict = {}
+            body_markdown = ""
+            item.metadata["generated_image_url"] = build_generated_image_url(item)
+            if item.path and Path(item.path).exists():
+                frontmatter, body_markdown = parse_markdown_file(Path(item.path))
+            self.notion.upsert_pipeline_item(
+                item,
+                post_frontmatter=frontmatter,
+                post_markdown=body_markdown,
+            )
+            return
+
+        if pipeline is None:
+            pipeline = load_pipeline(self.config.pipeline_file)
+            replaced = False
+            for idx, existing in enumerate(pipeline):
+                if existing.id == item.id:
+                    pipeline[idx] = item
+                    replaced = True
+                    break
+            if not replaced:
+                pipeline.append(item)
+        save_pipeline(self.config.pipeline_file, pipeline)
 
     @staticmethod
     def read_json_body(environ) -> dict:
@@ -1165,9 +1673,9 @@ def build_main_blog_url(item: PipelineItem) -> str:
     return ""
 
 
-def resolve_connected_main_blog_url(item: PipelineItem, pipeline: list[PipelineItem]) -> str:
+def find_reporting_main_item(item: PipelineItem, pipeline: list[PipelineItem]) -> PipelineItem | None:
     if item.topic_role != "side":
-        return ""
+        return None
 
     candidates = [
         entry
@@ -1191,9 +1699,87 @@ def resolve_connected_main_blog_url(item: PipelineItem, pipeline: list[PipelineI
         reverse=True,
     )
     if candidates:
-        return build_main_blog_url(candidates[0])
+        return candidates[0]
+    return None
+
+
+def resolve_connected_main_blog_url(item: PipelineItem, pipeline: list[PipelineItem]) -> str:
+    if item.topic_role != "side":
+        return ""
+
+    manager = find_reporting_main_item(item, pipeline)
+    if manager:
+        return build_main_blog_url(manager)
 
     return build_main_blog_url(item)
+
+
+def assign_hierarchy_metadata(item: PipelineItem, pipeline: list[PipelineItem]) -> bool:
+    before = {
+        "hierarchy_role": str(item.metadata.get("hierarchy_role", "")),
+        "reports_to_main_id": str(item.metadata.get("reports_to_main_id", "")),
+        "reports_to_main_title": str(item.metadata.get("reports_to_main_title", "")),
+        "reports_to_main_url": str(item.metadata.get("reports_to_main_url", "")),
+    }
+
+    if item.topic_role == "main":
+        item.metadata["hierarchy_role"] = "main-ceo"
+        item.metadata["reports_to_main_id"] = ""
+        item.metadata["reports_to_main_title"] = ""
+        item.metadata["reports_to_main_url"] = ""
+    elif item.topic_role == "side":
+        manager = find_reporting_main_item(item, pipeline)
+        item.metadata["hierarchy_role"] = "sub-reports-to-main"
+        if manager:
+            item.metadata["reports_to_main_id"] = manager.id
+            item.metadata["reports_to_main_title"] = manager.title
+            item.metadata["reports_to_main_url"] = build_main_blog_url(manager)
+        else:
+            item.metadata["reports_to_main_id"] = ""
+            item.metadata["reports_to_main_title"] = ""
+            item.metadata["reports_to_main_url"] = ""
+    else:
+        item.metadata["hierarchy_role"] = "pillar-company"
+        item.metadata["reports_to_main_id"] = ""
+        item.metadata["reports_to_main_title"] = ""
+        item.metadata["reports_to_main_url"] = ""
+
+    after = {
+        "hierarchy_role": str(item.metadata.get("hierarchy_role", "")),
+        "reports_to_main_id": str(item.metadata.get("reports_to_main_id", "")),
+        "reports_to_main_title": str(item.metadata.get("reports_to_main_title", "")),
+        "reports_to_main_url": str(item.metadata.get("reports_to_main_url", "")),
+    }
+    return before != after
+
+
+def synchronize_pillar_hierarchy(*, pipeline: list[PipelineItem], pillar_id: str) -> list[PipelineItem]:
+    changed: list[PipelineItem] = []
+    for item in pipeline:
+        if pillar_id and item.pillar_id != pillar_id:
+            continue
+        before_links = list(item.topic_internal_links)
+        if item.topic_role == "side":
+            ensure_sub_blog_has_main_blog_link(item=item, pipeline=pipeline)
+            if item.status in {"approved", "pushed"}:
+                ensure_sub_blog_backlink_in_markdown(item=item, pipeline=pipeline)
+        metadata_changed = assign_hierarchy_metadata(item=item, pipeline=pipeline)
+        links_changed = before_links != item.topic_internal_links
+        if metadata_changed or links_changed:
+            changed.append(item)
+    return changed
+
+
+def hydrate_hierarchy_fields(row: dict) -> None:
+    metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+    row["hierarchy_role"] = str(
+        row.get("hierarchy_role")
+        or metadata.get("hierarchy_role")
+        or ("main-ceo" if row.get("topic_role") == "main" else "sub-reports-to-main")
+    )
+    row["reports_to_main_id"] = str(row.get("reports_to_main_id") or metadata.get("reports_to_main_id") or "")
+    row["reports_to_main_title"] = str(row.get("reports_to_main_title") or metadata.get("reports_to_main_title") or "")
+    row["reports_to_main_url"] = str(row.get("reports_to_main_url") or metadata.get("reports_to_main_url") or "")
 
 
 def ensure_sub_blog_has_main_blog_link(item: PipelineItem, pipeline: list[PipelineItem]) -> None:
@@ -1266,6 +1852,93 @@ def format_trend_delta(idea) -> str:
     if idea.score is None:
         return "N/A"
     return f"{idea.score}%"
+
+
+def is_placeholder_title(title: str) -> bool:
+    normalized = str(title or "").strip().lower()
+    return normalized in {"", "untitled topic", "generating blog...", "new blog", "new post"}
+
+
+def should_auto_generate_from_notion_row(item: PipelineItem) -> bool:
+    if not item.pillar_id or item.topic_role not in {"main", "side"}:
+        return False
+    if item.post_id:
+        return False
+    if item.status not in {"topic", "draft", "approved", "pushed"}:
+        return False
+    queued = bool((item.metadata if isinstance(item.metadata, dict) else {}).get("queued_generation", False))
+    return queued or is_placeholder_title(item.title) or not str(item.query or "").strip()
+
+
+def created_at_sort_key(created_at: str) -> float:
+    value = str(created_at or "").strip()
+    if not value:
+        return float("-inf")
+    normalized = value.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized).timestamp()
+    except (ValueError, OSError):
+        return float("-inf")
+
+
+def action_priority(item: PipelineItem) -> tuple[int, float]:
+    metadata = item.metadata if isinstance(item.metadata, dict) else {}
+    needs_push = is_push_requested(item) and not bool(item.shopify_article_id)
+    needs_approve = item.status in {"approved", "pushed"} and not bool(item.post_id)
+    needs_generate = should_auto_generate_from_notion_row(item)
+    queued = bool(metadata.get("queued_generation", False))
+    role_bonus = 0 if item.topic_role == "main" else 1
+    if needs_push:
+        # Highest urgency: explicit publish intent from Notion.
+        return (0, 0.0)
+    if needs_approve:
+        # Next: approved rows waiting for full draft generation.
+        return (1, 0.0)
+    if needs_generate and queued:
+        # Continue already-started generation first.
+        return (2, float(role_bonus))
+    if needs_generate:
+        return (3, float(role_bonus))
+    return (9, 0.0)
+
+
+def is_push_requested(item: PipelineItem) -> bool:
+    metadata = item.metadata if isinstance(item.metadata, dict) else {}
+    ready_to_push = bool(metadata.get("ready_to_push", False))
+    # `status=pushed` in Notion is treated as an intent only until we have a pushed timestamp.
+    status_requested = item.status == "pushed" and not bool(item.pushed_at)
+    return ready_to_push or status_requested
+
+
+def resolve_shopify_blog_id(
+    *,
+    item: PipelineItem,
+    shopify: ShopifyPublisher,
+    default_shopify_blog_id: str,
+) -> str:
+    blog_id = (
+        str(item.shopify_blog_id or "").strip()
+        or str((item.metadata if isinstance(item.metadata, dict) else {}).get("shopify_blog_id", "")).strip()
+        or str(default_shopify_blog_id or "").strip()
+    )
+    if blog_id:
+        return blog_id
+    if not shopify.enabled:
+        return ""
+    try:
+        blogs = shopify.list_blogs(limit=5)
+    except Exception:  # noqa: BLE001
+        return ""
+    if not blogs:
+        return ""
+    return str(blogs[0].get("id", "")).strip()
+
+
+def is_action_candidate(item: PipelineItem) -> bool:
+    needs_push = is_push_requested(item) and not bool(item.shopify_article_id)
+    needs_approve = item.status in {"approved", "pushed"} and not bool(item.post_id)
+    needs_generate = should_auto_generate_from_notion_row(item)
+    return needs_generate or needs_approve or needs_push
 
 
 def build_market_cards(trend_cards: list[dict], seeds: list[str]) -> list[dict]:
@@ -1487,6 +2160,43 @@ def normalize_origin(website_url: str) -> str:
     return f"{scheme}://{parsed.netloc}"
 
 
+def normalize_requested_keywords(raw_keywords: list[str] | str) -> list[str]:
+    if isinstance(raw_keywords, str):
+        candidates = re.split(r"[\n,]", raw_keywords)
+    elif isinstance(raw_keywords, list):
+        candidates = raw_keywords
+    else:
+        candidates = []
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for value in candidates:
+        keyword = str(value or "").strip()
+        if not keyword:
+            continue
+        key = keyword.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(keyword)
+    return deduped[:20]
+
+
+def merge_keyword_targets(*, preferred: list[str], planned: list[str], fallback: list[str]) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for source in [preferred, planned, fallback]:
+        for value in source:
+            keyword = str(value or "").strip()
+            if not keyword:
+                continue
+            key = keyword.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(keyword)
+    return merged[:20]
+
+
 def env_flag(name: str, *, default: bool = False) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -1497,6 +2207,31 @@ def env_flag(name: str, *, default: bool = False) -> bool:
     if cleaned in {"0", "false", "no", "off"}:
         return False
     return default
+
+
+def build_seo_pillars_seed(clusters: list[KeywordCluster]) -> list[dict]:
+    grouped: dict[str, dict] = {}
+    default_priority = {
+        "pillar-1": 1,
+        "pillar-2": 4,
+        "pillar-3": 3,
+        "pillar-4": 2,
+        "pillar-5": 5,
+    }
+    for cluster in clusters:
+        pillar_id = cluster.pillar_id or sanitize_slug(cluster.pillar_name or cluster.name)
+        if pillar_id not in grouped:
+            grouped[pillar_id] = {
+                "pillarId": pillar_id,
+                "pillarName": cluster.pillar_name or cluster.main_topic or cluster.name,
+                "priority": default_priority.get(pillar_id, 999),
+                "targetKeyword": cluster.queries[0] if cluster.queries else "",
+                "pillarThesis": cluster.pillar_claim or cluster.notes,
+                "clusterTopics": [],
+                "status": "active",
+            }
+        grouped[pillar_id]["clusterTopics"].append(cluster.name)
+    return sorted(grouped.values(), key=lambda row: row["priority"])
 
 
 def rank_posts_for_topic(topic: str, posts: list[dict]) -> list[tuple[dict, float]]:

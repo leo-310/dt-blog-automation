@@ -13,14 +13,20 @@ Requires-Dist: pyyaml>=6.0.2
 # Doctor Towels Blog Agent
 
 This project generates SEO blog drafts for a weekly Doctor Towels pipeline, scores each draft against strict editorial guidelines, and lets you approve before push.
+It is now organized around a 4-pillar strategy where each sub-blog topic is tagged to a parent main topic.
 
 ## What it does
 
-- Generates one or many weekly drafts from Doctor Towels keyword clusters
+- Generates one or many weekly drafts from pillar-linked keyword clusters
+- Auto-bootstraps one pillar-head topic for each pillar before regular sub-blog generation
+- Auto-assigns each sub-blog to its pillar-head reference link (`/blogs/{pillar-head-slug}`)
+- Enforces a hard rule that sub-blogs include a natural in-body link to their pillar main blog (`/blogs/...`)
 - Avoids repeating recently used queries
 - Scores each draft against guideline checks (structure, citations, customer language, product coverage)
 - Saves markdown output to `content/posts/`
 - Tracks pipeline status in `data/pipeline.yaml` (`draft`, `approved`, `pushed`, `rejected`)
+- Tracks `pillar_name`, `main_topic`, and `sub_blog_tag` per pipeline item for hierarchy integrity
+- Tracks `planned_keywords` per topic so keyword targeting is visible before approval
 - Tracks topic history in `data/topic_history.yaml`
 
 ## Setup
@@ -47,6 +53,11 @@ OPENAI_API_KEY="your-key"
 BLOG_AGENT_MODEL="gpt-4.1-mini"
 BLOG_AGENT_API_BASE_URL="https://api.openai.com/v1"
 BLOG_AGENT_API_MODE="auto"
+BLOG_AGENT_IMAGE_MODEL="gpt-image-1.5"
+BLOG_AGENT_IMAGE_PROMPT_MODEL="gpt-5.4-mini"
+BLOG_AGENT_IMAGE_QUALITY="low"
+BLOG_AGENT_IMAGE_SIZE="1536x1024"
+BLOG_AGENT_IMAGE_FORMAT="png"
 SHOPIFY_CLIENT_ID=""
 SHOPIFY_CLIENT_SECRET=""
 MYSHOPIFY_DOMAIN=""
@@ -88,18 +99,38 @@ curl -G "http://127.0.0.1:8124/api/keyword-research" \
 Run the React UI:
 
 ```bash
-source .venv/bin/activate
-blog-agent-api
-```
-
-In another terminal:
-
-```bash
 npm install
 npm run dev
 ```
 
 Then open `http://127.0.0.1:4173`.
+
+The UI is now browser-native: it seeds itself from `data/pipeline.yaml` and `data/keyword_clusters.yaml`, then persists your changes in `localStorage`. No Python API is required for the local interface.
+
+## Cloud deploy (single service)
+
+This repo now supports a single-process cloud deploy: the Python API serves both `/api/*` and the built React app.
+
+1. Push this repo to GitHub.
+2. In Render, create a new Blueprint service from the repo root (`render.yaml`).
+3. Add required secrets in Render:
+   - `OPENAI_API_KEY`
+   - `SHOPIFY_CLIENT_ID`
+   - `SHOPIFY_CLIENT_SECRET`
+   - `MYSHOPIFY_DOMAIN`
+4. Deploy and open your Render URL.
+
+## Netlify frontend
+
+The React app can deploy as a static site because it no longer depends on `/api/*` routes for the local editorial workflow.
+
+1. Deploy the repo to Netlify.
+2. Build command: `npm run build`
+3. Publish directory: `dist`
+
+Notes:
+- `netlify.toml` already points at the Vite build output.
+- Local edits are stored per-browser, so production users do not share pipeline state unless you add a separate persistence layer later.
 
 Generate a four-week draft pipeline by API:
 
@@ -125,8 +156,10 @@ cd "/Users/cherubin/Desktop/blog agent" && ./run_daily.sh
 - `data/sources/`: product knowledge, research notes, customer language, competitor gaps
 - `data/keyword_clusters.yaml`: topic universe
 - `prompts/`: planning and writing behavior
-- `blog-agent-api`: JSON API used by the React UI
+- `blog-agent-api`: optional Python API for CLI/server workflows
 - `/api/keyword-research`: Google Trends-backed keyword discovery endpoint
+- `/api/images/generate`: OpenAI image generation endpoint (defaults: `gpt-image-1.5`, `low`, landscape `1536x1024`)
+  - Uses `BLOG_AGENT_IMAGE_PROMPT_MODEL` (default `gpt-5.4-mini`) to write a topic-aware abstract art-direction prompt before image generation.
 - `/api/shopify/blogs`: fetch Shopify blogs for publish targeting
 - `src/ui/`: React app for generation and preview
 
@@ -142,6 +175,12 @@ GEMINI_API_KEY="..."
 PERPLEXITY_API_KEY="..."
 ANTHROPIC_API_KEY="..."
 ```
+
+Prompt set is stored in:
+
+- `data/visibility_prompts.yaml`
+
+Use 5-8 prompts and mark each as `generic` or `branded`. Generic prompts are weighted higher by default so brand-name wins do not overstate category visibility.
 
 Run with explicit topics:
 
@@ -168,6 +207,37 @@ You can also choose a custom output directory:
 ```bash
 blog-agent visibility --output-dir ./data/visibility
 ```
+
+Use a custom prompt file if needed:
+
+```bash
+blog-agent visibility --prompt-file ./data/visibility_prompts.yaml
+```
+
+## Supabase backup for blog entries (including images)
+
+Use Supabase to persist all generated pipeline/blog entries (plus base64 image data) so deploy restarts do not lose your content.
+
+1. In Supabase SQL Editor, run:
+   - `sql/supabase_blog_entries.sql`
+2. Set these env vars in your API host and locally:
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_BLOG_TABLE` (optional, defaults to `table_name`)
+   - `SUPABASE_LOGICAL_NAMESPACE` (optional, defaults to `pillar_architecture_blog_entries`)
+   - `SUPABASE_SYNC_CHUNK_SIZE` (optional, defaults to `3`)
+   - `BLOG_AGENT_USE_SUPABASE_NAMESPACE` (set to `1` on deployed API)
+3. Sync existing local data:
+
+```bash
+source .venv/bin/activate
+blog-agent supabase-sync
+```
+
+The sync upserts each pipeline item by `pipeline_id` and includes:
+- pipeline/topic status fields
+- markdown body/frontmatter
+- generated image filename + mime type + base64
 
 ## Notes
 

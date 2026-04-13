@@ -10,6 +10,7 @@ src/blog_agent/models.py
 src/blog_agent/provider.py
 src/blog_agent/shopify.py
 src/blog_agent/storage.py
+src/blog_agent/supabase_sync.py
 src/blog_agent/visibility.py
 src/doctor_towels_blog_agent.egg-info/PKG-INFO
 src/doctor_towels_blog_agent.egg-info/SOURCES.txt

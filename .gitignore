@@ -1,8 +1,15 @@
 .DS_Store
 .env
 .venv/
+.tools/
+.npm-cache/
+node_modules_old_1/
 __pycache__/
 *.pyc
 node_modules/
 dist/
-
+.playwright/
+.vercel-home/
+api-*.log
+*.tgz
+output/

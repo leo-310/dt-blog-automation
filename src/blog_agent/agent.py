@@ -170,6 +170,10 @@ class BlogAgent:
                     body=article.body_markdown,
                     internal_links=plan.internal_links,
                 )
+                validate_required_keywords_in_body(
+                    body=article.body_markdown,
+                    required_keywords=plan.keywords_to_use,
+                )
                 last_error = None
                 break
             except RuntimeError as exc:
@@ -303,6 +307,29 @@ def validate_required_internal_blog_links(body: str, internal_links: list[str]) 
         "Generated article is missing the required main blog internal link in body_markdown. "
         f"Expected one of: {required_blog_links}"
     )
+
+
+def normalize_keyword_text(value: str) -> str:
+    lowered = re.sub(r"[^a-z0-9\s]+", " ", str(value or "").lower())
+    return re.sub(r"\s+", " ", lowered).strip()
+
+
+def validate_required_keywords_in_body(body: str, required_keywords: list[str]) -> None:
+    if not required_keywords:
+        return
+    normalized_body = normalize_keyword_text(body)
+    missing: list[str] = []
+    for keyword in required_keywords:
+        normalized_keyword = normalize_keyword_text(keyword)
+        if not normalized_keyword:
+            continue
+        if normalized_keyword not in normalized_body:
+            missing.append(keyword)
+    if missing:
+        raise RuntimeError(
+            "Generated article is missing required keywords in body_markdown: "
+            + ", ".join(missing)
+        )
 
 
 def validate_article_requirements(article: BlogArticle) -> GuidelineReport:

@@ -41,3 +41,51 @@ history:
   cluster: custom
   created_on: '2026-03-29'
   output_path: /Users/cherubin/Desktop/blog agent/content/posts/2026-03-29-why-your-face-feels-worse-after-drying-towel-friction-check.md
+- title: Should I Use A New Towel Every Day If I Have Acne-Prone Skin?
+  slug: should-i-use-a-new-towel-every-day-if-i-have-acne-prone-skin
+  query: should i use a new towel every day
+  cluster: Towel Hygiene Routine Gaps
+  created_on: '2026-04-09'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-09-should-i-use-a-new-towel-every-day-if-i-have-acne-prone-skin.md
+- title: Can A Rough Towel Make Acne Worse?
+  slug: can-a-rough-towel-make-acne-worse
+  query: can a rough towel make acne worse
+  cluster: custom
+  created_on: '2026-04-12'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-12-can-a-rough-towel-make-acne-worse.md
+- title: 'Silver Infused Vs Zinc Embedded Towels: What Actually Matters For Skin'
+  slug: silver-infused-vs-zinc-embedded-towels-for-skin
+  query: silver infused vs zinc embedded towels
+  cluster: Textile Durability and Microbiome
+  created_on: '2026-04-12'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-12-silver-infused-vs-zinc-embedded-towels-for-skin.md
+- title: Face Towel Vs Bath Towel For Acne-Prone Skin
+  slug: face-towel-vs-bath-towel-acne-prone-skin
+  query: face towel vs bath towel acne
+  cluster: Acne Hygiene Deep Science
+  created_on: '2026-04-09'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-09-face-towel-vs-bath-towel-acne-prone-skin.md
+- title: Why Your Skincare Routine Might Not Be Working If Your Towel Stays Damp
+  slug: why-your-skincare-routine-might-not-be-working-if-your-towel-stays-damp
+  query: why skincare routine not working towel
+  cluster: Sensitive Skin Buyer Intent
+  created_on: '2026-04-10'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-10-why-your-skincare-routine-might-not-be-working-if-your-towel-stays-damp.md
+- title: Do Antimicrobial Towels Really Work For Acne-Prone Skin?
+  slug: do-antimicrobial-towels-really-work-for-acne-prone-skin
+  query: do antimicrobial towels really work
+  cluster: Mechanical Antimicrobial Education
+  created_on: '2026-04-10'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-10-do-antimicrobial-towels-really-work-for-acne-prone-skin.md
+- title: Why Your Towel Might Be Breaking You Out
+  slug: why-your-towel-might-be-breaking-you-out
+  query: why your towel is breaking you out
+  cluster: Acne Trigger Gateway
+  created_on: '2026-04-10'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-10-why-your-towel-might-be-breaking-you-out.md
+- title: Can A Bath Towel Irritate Sensitive Facial Skin?
+  slug: can-a-bath-towel-irritate-sensitive-facial-skin
+  query: can a bath towel irritate sensitive facial skin
+  cluster: custom
+  created_on: '2026-04-10'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-10-can-a-bath-towel-irritate-sensitive-facial-skin.md

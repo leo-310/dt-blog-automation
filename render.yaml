@@ -18,4 +18,22 @@ services:
         sync: false
       - key: MYSHOPIFY_DOMAIN
         sync: false
+      - key: BLOG_AGENT_USE_NOTION
+        value: "1"
+      - key: NOTION_API_TOKEN
+        sync: false
+      - key: NOTION_PARENT_PAGE_ID
+        sync: false
+      - key: BLOG_AGENT_USE_SUPABASE_NAMESPACE
+        value: "0"
+
+  - type: cron
+    name: blog-agent-automation-tick
+    runtime: docker
+    schedule: "*/15 * * * *"
+    dockerCommand: |
+      sh -lc 'TICK_URL="${BLOG_AGENT_TICK_URL:-http://blog-agent:10000/api/automation/tick}"; echo "POST ${TICK_URL}"; curl -fsS -X POST "$TICK_URL"'
+    envVars:
+      - key: BLOG_AGENT_TICK_URL
+        sync: false
 

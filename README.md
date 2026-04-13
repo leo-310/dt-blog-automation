@@ -93,7 +93,7 @@ npm run dev
 
 Then open `http://127.0.0.1:4173`.
 
-The UI is now browser-native: it seeds itself from `data/pipeline.yaml` and `data/keyword_clusters.yaml`, then persists your changes in `localStorage`. No Python API is required for the local interface.
+The UI is API-backed and uses the Python backend as source-of-truth. Local storage is only used as a lightweight cache.
 
 ## Cloud deploy (single service)
 
@@ -106,19 +106,14 @@ This repo now supports a single-process cloud deploy: the Python API serves both
    - `SHOPIFY_CLIENT_ID`
    - `SHOPIFY_CLIENT_SECRET`
    - `MYSHOPIFY_DOMAIN`
+   - `NOTION_API_TOKEN`
+   - `NOTION_PARENT_PAGE_ID`
+   - `BLOG_AGENT_USE_NOTION=1`
 4. Deploy and open your Render URL.
 
 ## Netlify frontend
 
-The React app can deploy as a static site because it no longer depends on `/api/*` routes for the local editorial workflow.
-
-1. Deploy the repo to Netlify.
-2. Build command: `npm run build`
-3. Publish directory: `dist`
-
-Notes:
-- `netlify.toml` already points at the Vite build output.
-- Local edits are stored per-browser, so production users do not share pipeline state unless you add a separate persistence layer later.
+The frontend can still be deployed statically to Netlify, but it must target a running API host (`VITE_API_BASE_URL` or same-origin proxy) because workflow actions are server-backed.
 
 Generate a four-week draft pipeline by API:
 
@@ -130,11 +125,21 @@ curl -X POST "http://127.0.0.1:8124/api/pipeline/generate" \
 
 ## Daily automation
 
-Use this command in your scheduler or Codex automation:
+You can still run the legacy CLI scheduler command:
 
 ```bash
 cd "/Users/cherubin/Desktop/blog agent" && ./run_daily.sh
 ```
+
+For Notion-backed automation, call the API tick endpoint every 15 minutes:
+
+```bash
+curl -X POST "https://<your-api-host>/api/automation/tick"
+```
+
+Render blueprint includes a cron service (`blog-agent-automation-tick`) scheduled every 15 minutes.
+By default it posts to the internal web service URL (`http://blog-agent:10000/api/automation/tick`), so daily automation works without extra setup.
+If you prefer an external host, set `BLOG_AGENT_TICK_URL` to override the default target.
 
 ## What to customize
 
@@ -150,6 +155,11 @@ cd "/Users/cherubin/Desktop/blog agent" && ./run_daily.sh
   - Uses `BLOG_AGENT_IMAGE_PROMPT_MODEL` (default `gpt-5.4-mini`) to write a topic-aware abstract art-direction prompt before image generation.
 - `/api/shopify/blogs`: fetch Shopify blogs for publish targeting
 - `src/ui/`: React app for generation and preview
+- `/api/settings`: load/update automation schedule (`dailyTime`, `timezone`, `enabled`)
+- `/api/notion/setup`: auto-create `SEO Pillars`, `Blog Pipeline`, `Automation Settings` databases
+- `/api/notion/migrate`: one-time import from local `pipeline.yaml` and markdown files to Notion
+- `/api/automation/run-now`: set run-now and execute generation immediately
+- `/api/automation/tick`: idempotent scheduler endpoint for daily generation window checks
 
 ## Cross-model AI visibility tracking
 
@@ -204,7 +214,7 @@ blog-agent visibility --prompt-file ./data/visibility_prompts.yaml
 
 ## Supabase backup for blog entries (including images)
 
-Use Supabase to persist all generated pipeline/blog entries (plus base64 image data) so deploy restarts do not lose your content.
+Supabase support remains available as fallback. Notion is now the primary backend when `BLOG_AGENT_USE_NOTION=1`.
 
 1. In Supabase SQL Editor, run:
    - `sql/supabase_blog_entries.sql`
