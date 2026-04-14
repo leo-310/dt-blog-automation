@@ -82,6 +82,8 @@ export function setCustomApiBase(value) {
 function isLongRunningPath(path) {
   const normalized = String(path || "").toLowerCase();
   return (
+    normalized === "/api/pipeline" ||
+    normalized.startsWith("/api/pipeline?") ||
     normalized.includes("/api/pipeline/generate") ||
     normalized.includes("/api/images/generate") ||
     normalized.includes("/api/pipeline/") ||
@@ -248,7 +250,7 @@ export function resetWorkspace() {
 
 export async function fetchWorkspace() {
   const [pipelineResult, pillarsResult, blogsResult] = await Promise.all([
-    request("/api/pipeline"),
+    request("/api/pipeline", { timeoutMs: LONG_RUNNING_API_TIMEOUT_MS }),
     request("/api/pillars"),
     request("/api/shopify/blogs").catch(() => ({ blogs: SHOPIFY_BLOGS }))
   ]);

@@ -106,8 +106,7 @@ export function App() {
           current.generatingImage ||
           current.notionBusy;
         shouldRun = !blocked;
-        if (blocked) return current;
-        return { ...current, notionSyncing: true };
+        return current;
       });
 
       if (!shouldRun) return;
@@ -129,9 +128,6 @@ export function App() {
         // keep quiet in background polling
       } finally {
         inFlight = false;
-        if (!cancelled) {
-          setState((current) => ({ ...current, notionSyncing: false }));
-        }
       }
     };
 
@@ -148,6 +144,48 @@ export function App() {
       window.clearInterval(interval);
     };
   }, [state.notionEnabled, state.notionConfigured]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let inFlight = false;
+
+    const refreshFromServer = async () => {
+      if (cancelled || inFlight) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+
+      let shouldRun = false;
+      setState((current) => {
+        const blocked =
+          current.loading ||
+          current.generating ||
+          current.runningTransition ||
+          current.generatingImage ||
+          current.notionBusy ||
+          current.notionSyncing;
+        shouldRun = !blocked;
+        return current;
+      });
+      if (!shouldRun) return;
+
+      inFlight = true;
+      try {
+        await refreshWorkspace();
+      } catch {
+        // keep quiet for periodic background refresh
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const interval = window.setInterval(() => {
+      void refreshFromServer();
+    }, 60000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   const activePillar = useMemo(
     () => state.pillars.find((pillar) => pillar.pillarId === state.selectedPillarId) || state.pillars[0],

@@ -1135,16 +1135,41 @@ class BlogAgentApi:
     ) -> list[dict]:
         pipeline = self._load_pipeline_models()
         clusters = load_keyword_clusters(self.config.topic_file)
+        rotating_pillar_ids = self._active_pillar_ids_for_generation(clusters=clusters)
+        rotation_cursor = 0
+        last_generated_pillar_id = self._latest_pipeline_pillar_id(pipeline)
         start = date.today()
         created: list[dict] = []
         enforced_keywords = normalize_requested_keywords(required_keywords or [])
         blocked_queries = [item.query for item in pipeline]
         for offset in range(count):
             target_date = start + timedelta(days=offset)
+            preferred_pillar_id = pillar_id
+            if not preferred_pillar_id and rotating_pillar_ids:
+                preferred_pillar_id, rotation_cursor = pick_next_pillar_for_rotation(
+                    rotating_pillar_ids,
+                    last_pillar_id=last_generated_pillar_id,
+                    cursor=rotation_cursor,
+                )
             plan, cluster = self.agent.plan_topic(
                 blocked_queries=blocked_queries,
-                preferred_pillar_id=pillar_id,
+                preferred_pillar_id=preferred_pillar_id,
             )
+            if (
+                not pillar_id
+                and len(rotating_pillar_ids) > 1
+                and last_generated_pillar_id
+                and cluster.pillar_id == last_generated_pillar_id
+            ):
+                for candidate_pillar_id in rotating_pillar_ids:
+                    if candidate_pillar_id in {last_generated_pillar_id, preferred_pillar_id}:
+                        continue
+                    alt_plan, alt_cluster = self.agent.plan_topic(
+                        blocked_queries=blocked_queries,
+                        preferred_pillar_id=candidate_pillar_id,
+                    )
+                    plan, cluster = alt_plan, alt_cluster
+                    break
             plan.keywords_to_use = merge_keyword_targets(
                 preferred=enforced_keywords,
                 planned=plan.keywords_to_use or [],
@@ -1181,9 +1206,43 @@ class BlogAgentApi:
             pipeline.append(item)
             self._persist_pipeline_item(item, pipeline=pipeline)
             created.append(item.model_dump(mode="json"))
+            if item.pillar_id:
+                last_generated_pillar_id = item.pillar_id
         if not (self.use_notion and self.notion.configured):
             save_pipeline(self.config.pipeline_file, pipeline)
         return created
+
+    def _latest_pipeline_pillar_id(self, pipeline: list[PipelineItem]) -> str:
+        sorted_items = sorted(
+            pipeline,
+            key=lambda row: created_at_sort_key(row.created_at),
+            reverse=True,
+        )
+        for item in sorted_items:
+            pillar_id = str(item.pillar_id or "").strip()
+            if pillar_id:
+                return pillar_id
+        return ""
+
+    def _active_pillar_ids_for_generation(self, *, clusters: list[KeywordCluster]) -> list[str]:
+        candidate_ids: list[str] = []
+        if self.use_notion and self.notion.configured:
+            notion_pillars = self.notion.load_pillars()
+            for pillar in notion_pillars:
+                status = str(pillar.get("status", "active")).strip().lower()
+                pillar_id = str(pillar.get("pillarId", "")).strip()
+                if not pillar_id or status == "paused":
+                    continue
+                if pillar_id not in candidate_ids:
+                    candidate_ids.append(pillar_id)
+        if candidate_ids:
+            return candidate_ids
+
+        for cluster in clusters:
+            pillar_id = str(getattr(cluster, "pillar_id", "") or "").strip()
+            if pillar_id and pillar_id not in candidate_ids:
+                candidate_ids.append(pillar_id)
+        return candidate_ids
 
     def upsert_pipeline_item(self, generated) -> PipelineItem:
         pipeline = self._load_pipeline_models()
@@ -2101,6 +2160,25 @@ def resolve_shopify_blog_id(
     if not blogs:
         return ""
     return str(blogs[0].get("id", "")).strip()
+
+
+def pick_next_pillar_for_rotation(
+    pillar_ids: list[str],
+    *,
+    last_pillar_id: str,
+    cursor: int,
+) -> tuple[str, int]:
+    if not pillar_ids:
+        return "", cursor
+    total = len(pillar_ids)
+    start_index = cursor % total
+
+    for step in range(total):
+        index = (start_index + step) % total
+        candidate = pillar_ids[index]
+        if total == 1 or candidate != last_pillar_id:
+            return candidate, (index + 1) % total
+    return pillar_ids[start_index], (start_index + 1) % total
 
 
 def is_action_candidate(item: PipelineItem) -> bool:

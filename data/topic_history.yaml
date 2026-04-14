@@ -149,3 +149,21 @@ history:
   cluster: custom
   created_on: '2026-04-14'
   output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-why-your-face-towel-is-breaking-you-out.md
+- title: How Face Towel Friction Can Quietly Worsen Acne-Prone Skin
+  slug: face-towel-friction-acne-prone-skin
+  query: can rubbing your face with a towel make acne worse
+  cluster: custom
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-face-towel-friction-acne-prone-skin.md
+- title: Can A Damp Face Towel Keep Irritating Acne-Prone Skin?
+  slug: damp-face-towel-irritation-acne-prone-skin
+  query: can a damp face towel keep irritating acne-prone skin
+  cluster: custom
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-damp-face-towel-irritation-acne-prone-skin.md
+- title: Can A Damp Face Towel Keep Irritating Acne-Prone Skin?
+  slug: damp-face-towel-irritating-acne-prone-skin
+  query: can a damp face towel keep irritating acne-prone skin
+  cluster: custom
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-damp-face-towel-irritating-acne-prone-skin.md
