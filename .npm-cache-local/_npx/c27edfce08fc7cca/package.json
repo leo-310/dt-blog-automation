@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "getdesign": "^0.6.2"
+  },
+  "_npx": {
+    "packages": [
+      "getdesign@latest"
+    ]
+  }
+}

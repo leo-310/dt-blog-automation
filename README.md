@@ -38,7 +38,9 @@ Then update `.env` with your values:
 ```bash
 BLOG_AGENT_API_KEY="your-key"
 OPENAI_API_KEY="your-key"
-BLOG_AGENT_MODEL="gpt-4.1-mini"
+BLOG_AGENT_MODEL="gpt-5.4"
+BLOG_AGENT_TOPIC_MODEL="gpt-5.4-mini"
+BLOG_AGENT_ARTICLE_MODEL="gpt-5.4"
 BLOG_AGENT_API_BASE_URL="https://api.openai.com/v1"
 BLOG_AGENT_API_MODE="auto"
 BLOG_AGENT_IMAGE_MODEL="gpt-image-1.5"
@@ -84,11 +86,11 @@ curl -G "http://127.0.0.1:8124/api/keyword-research" \
   --data-urlencode "seed=can your towel cause acne"
 ```
 
-Run the React UI:
+Run the full local app (API + UI):
 
 ```bash
 npm install
-npm run dev
+npm run dev:full
 ```
 
 Then open `http://127.0.0.1:4173`.
@@ -131,7 +133,7 @@ You can still run the legacy CLI scheduler command:
 cd "/Users/cherubin/Desktop/blog agent" && ./run_daily.sh
 ```
 
-For Notion-backed automation, call the API tick endpoint every 15 minutes:
+For settings-driven automation from the UI (`dailyTime`, `timezone`, `enabled`), call the API tick endpoint every 15 minutes:
 
 ```bash
 curl -X POST "https://<your-api-host>/api/automation/tick"
@@ -140,6 +142,19 @@ curl -X POST "https://<your-api-host>/api/automation/tick"
 Render blueprint includes a cron service (`blog-agent-automation-tick`) scheduled every 15 minutes.
 By default it posts to the internal web service URL (`http://blog-agent:10000/api/automation/tick`), so daily automation works without extra setup.
 If you prefer an external host, set `BLOG_AGENT_TICK_URL` to override the default target.
+
+Each scheduled run now performs the full workflow automatically:
+1. Generate pipeline topic(s) (`BLOG_AGENT_AUTOMATION_TOPIC_COUNT`, default `1`)
+2. Approve and generate full draft markdown
+3. Generate cover image via the same configured API key/provider
+4. Push to Shopify using resolved/default blog id
+
+Useful env controls:
+- `BLOG_AGENT_AUTOMATION_TOPIC_ROLE` (`main` or `side`, default `side`)
+- `BLOG_AGENT_AUTOMATION_TOPIC_COUNT` (default `1`)
+- `BLOG_AGENT_AUTOMATION_GENERATE_IMAGE` (`1`/`0`, default `1`)
+- `BLOG_AGENT_AUTOMATION_PUSH` (`1`/`0`, default `1`)
+- `SHOPIFY_DEFAULT_BLOG_ID` (optional explicit fallback blog id)
 
 ## What to customize
 
@@ -158,8 +173,8 @@ If you prefer an external host, set `BLOG_AGENT_TICK_URL` to override the defaul
 - `/api/settings`: load/update automation schedule (`dailyTime`, `timezone`, `enabled`)
 - `/api/notion/setup`: auto-create `SEO Pillars`, `Blog Pipeline`, `Automation Settings` databases
 - `/api/notion/migrate`: one-time import from local `pipeline.yaml` and markdown files to Notion
-- `/api/automation/run-now`: set run-now and execute generation immediately
-- `/api/automation/tick`: idempotent scheduler endpoint for daily generation window checks
+- `/api/automation/run-now`: set run-now and execute full automation workflow immediately
+- `/api/automation/tick`: idempotent scheduler endpoint for daily workflow checks
 
 ## Cross-model AI visibility tracking
 

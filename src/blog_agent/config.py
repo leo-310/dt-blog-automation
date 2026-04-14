@@ -37,6 +37,15 @@ class AgentConfig(BaseModel):
     model: str = Field(
         default_factory=lambda: os.getenv("BLOG_AGENT_MODEL", "gpt-5.4")
     )
+    topic_planner_model: str = Field(
+        default_factory=lambda: os.getenv("BLOG_AGENT_TOPIC_MODEL")
+        or os.getenv("BLOG_AGENT_TOPIC_PLANNER_MODEL")
+        or "gpt-5.4-mini"
+    )
+    article_writer_model: str = Field(
+        default_factory=lambda: os.getenv("BLOG_AGENT_ARTICLE_MODEL")
+        or os.getenv("BLOG_AGENT_MODEL", "gpt-5.4")
+    )
     api_key: str = Field(
         default_factory=lambda: os.getenv("BLOG_AGENT_API_KEY")
         or os.getenv("OPENAI_API_KEY", "")

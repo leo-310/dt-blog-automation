@@ -101,7 +101,11 @@ class BlogAgent:
             customer_language=context["customer_language"],
             source_library=context["source_library"],
         )
-        plan_response = self.provider.complete(context["system_prompt"], topic_prompt)
+        plan_response = self.provider.complete(
+            context["system_prompt"],
+            topic_prompt,
+            model=self.config.topic_planner_model,
+        )
         plan = BlogPlan.model_validate(json.loads(extract_json(plan_response)))
         cluster = find_cluster(plan.target_query, clusters)
         if cluster is None:
@@ -162,7 +166,11 @@ class BlogAgent:
                     "Return only one valid JSON object."
                 )
 
-            article_response = self.provider.complete(context["system_prompt"], article_prompt)
+            article_response = self.provider.complete(
+                context["system_prompt"],
+                article_prompt,
+                model=self.config.article_writer_model,
+            )
             article = BlogArticle.model_validate(json.loads(extract_json(article_response)))
             try:
                 guideline_report = validate_article_requirements(article)

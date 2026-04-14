@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import os
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -52,6 +54,8 @@ class ShopifyPublisher:
         body_html: str,
         summary_html: str | None = None,
         tags: list[str] | None = None,
+        image_url: str | None = None,
+        image_alt_text: str | None = None,
         is_published: bool = False,
         publish_date: str | None = None,
     ) -> dict[str, Any]:
@@ -63,6 +67,10 @@ class ShopifyPublisher:
               title
               handle
               publishedAt
+              image {
+                altText
+                url
+              }
               blog {
                 id
                 title
@@ -89,6 +97,11 @@ class ShopifyPublisher:
             article_input["tags"] = tags
         if publish_date:
             article_input["publishDate"] = publish_date
+        if image_url:
+            image_input: dict[str, Any] = {"url": image_url}
+            if image_alt_text:
+                image_input["altText"] = image_alt_text
+            article_input["image"] = image_input
 
         data = self._graphql(mutation, {"article": article_input})
         user_errors = data["articleCreate"]["userErrors"]
@@ -99,6 +112,43 @@ class ShopifyPublisher:
             )
             raise RuntimeError(f"Shopify articleCreate failed: {error_text}")
         return data["articleCreate"]["article"]
+
+    def attach_article_image(
+        self,
+        *,
+        blog_id: str,
+        article_id: str,
+        image_path: Path,
+        alt_text: str | None = None,
+    ) -> dict[str, Any]:
+        if not image_path.exists():
+            raise RuntimeError(f"Image file does not exist: {image_path}")
+        blog_numeric = self._extract_numeric_id(blog_id)
+        article_numeric = self._extract_numeric_id(article_id)
+        image_payload = {
+            "attachment": base64.b64encode(image_path.read_bytes()).decode("ascii"),
+        }
+        if alt_text:
+            image_payload["alt"] = alt_text
+        payload = {
+            "article": {
+                "id": int(article_numeric),
+                "image": image_payload,
+            }
+        }
+        response = self._rest_json(
+            "PUT",
+            f"/blogs/{blog_numeric}/articles/{article_numeric}.json",
+            payload,
+            timeout_seconds=120.0,
+        )
+        article = response.get("article")
+        if not isinstance(article, dict):
+            raise RuntimeError("Invalid Shopify REST response for article image update.")
+        image = article.get("image")
+        if not isinstance(image, dict):
+            raise RuntimeError("Shopify did not return article image details after upload.")
+        return image
 
     def _graphql(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
         token = self._get_access_token()
@@ -122,6 +172,46 @@ class ShopifyPublisher:
         if not isinstance(data, dict):
             raise RuntimeError("Invalid Shopify response payload: missing data object.")
         return data
+
+    def _rest_json(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        timeout_seconds: float = 45.0,
+    ) -> dict[str, Any]:
+        token = self._get_access_token()
+        normalized_path = path if path.startswith("/") else f"/{path}"
+        url = f"https://{self.domain}/admin/api/{self.api_version}{normalized_path}"
+        response = httpx.request(
+            method=method.upper(),
+            url=url,
+            headers={
+                "X-Shopify-Access-Token": token,
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=timeout_seconds,
+        )
+        response.raise_for_status()
+        body = response.json()
+        if not isinstance(body, dict):
+            raise RuntimeError("Invalid Shopify REST response payload.")
+        return body
+
+    @staticmethod
+    def _extract_numeric_id(value: str) -> str:
+        cleaned = str(value or "").strip()
+        if not cleaned:
+            raise RuntimeError("Missing Shopify ID value.")
+        if cleaned.isdigit():
+            return cleaned
+        if cleaned.startswith("gid://"):
+            maybe_numeric = cleaned.rsplit("/", 1)[-1].strip()
+            if maybe_numeric.isdigit():
+                return maybe_numeric
+        raise RuntimeError(f"Unsupported Shopify ID format: {cleaned}")
 
     def _get_access_token(self) -> str:
         now = datetime.now(UTC)

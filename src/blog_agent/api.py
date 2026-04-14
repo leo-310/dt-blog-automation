@@ -86,6 +86,11 @@ class BlogAgentApi:
             15,
             int(os.getenv("BLOG_AGENT_BACKGROUND_LOOP_INTERVAL_SECONDS", "60") or "60"),
         )
+        requested_role = str(os.getenv("BLOG_AGENT_AUTOMATION_TOPIC_ROLE", "side") or "side").strip().lower()
+        self._automation_topic_role = "main" if requested_role == "main" else "side"
+        self._automation_topic_count = max(1, int(os.getenv("BLOG_AGENT_AUTOMATION_TOPIC_COUNT", "1") or "1"))
+        self._automation_generate_image = env_flag("BLOG_AGENT_AUTOMATION_GENERATE_IMAGE", default=True)
+        self._automation_push = env_flag("BLOG_AGENT_AUTOMATION_PUSH", default=True)
         ensure_directories([CONTENT_DIR, GENERATED_IMAGE_DIR])
         if self._background_loop_enabled:
             threading.Thread(
@@ -470,8 +475,7 @@ class BlogAgentApi:
                     "notionActions": notion_actions,
                 }
 
-            generated = self.agent.generate_post()
-            self.upsert_pipeline_item(generated)
+            workflow_result = self._run_scheduled_full_workflow()
             updates = build_post_run_updates(schedule, now_utc=datetime.now(UTC))
             next_settings = {**settings_payload, **updates}
             next_settings["nextRunAt"] = decision.next_run_at
@@ -479,10 +483,134 @@ class BlogAgentApi:
             return {
                 "executed": True,
                 "reason": decision.reason,
-                "generatedPostId": Path(generated.output_path).name,
+                "workflow": workflow_result,
                 "settings": updated,
                 "notionActions": notion_actions,
             }
+
+    def _run_scheduled_full_workflow(self) -> dict:
+        created = self.generate_pipeline(
+            count=self._automation_topic_count,
+            topic_role=self._automation_topic_role,
+        )
+        if not created:
+            raise RuntimeError("Scheduled automation did not create a pipeline topic.")
+
+        processed_items: list[dict] = []
+        for created_row in created:
+            generated_id = str(created_row.get("id", "")).strip()
+            generated_title = str(created_row.get("title", "")).strip()
+            generated_query = str(created_row.get("query", "")).strip()
+            generated_created_at = str(created_row.get("created_at", "")).strip()
+
+            item = self._resolve_pipeline_item_for_automation(
+                created_id=generated_id,
+                title=generated_title,
+                query=generated_query,
+                created_at=generated_created_at,
+            )
+            if not item:
+                raise RuntimeError("Unable to resolve scheduled pipeline topic after generation.")
+
+            self.transition_pipeline_item(item.id, "approve", {"pillarId": item.pillar_id})
+            item = self._resolve_pipeline_item_for_automation(
+                created_id=generated_id,
+                title=generated_title,
+                query=generated_query,
+                created_at=generated_created_at,
+            ) or item
+
+            image_result = None
+            if self._automation_generate_image:
+                image_result = self.generate_pipeline_image(prompt="", pipeline_id=item.id)
+                item = self._resolve_pipeline_item_for_automation(
+                    created_id=generated_id,
+                    title=generated_title,
+                    query=generated_query,
+                    created_at=generated_created_at,
+                ) or item
+
+            push_result = None
+            if self._automation_push:
+                push_payload: dict[str, str] = {}
+                blog_id = resolve_shopify_blog_id(
+                    item=item,
+                    shopify=self.shopify,
+                    default_shopify_blog_id=self.default_shopify_blog_id,
+                )
+                if blog_id:
+                    push_payload["blogId"] = blog_id
+                push_result = self.transition_pipeline_item(item.id, "push", push_payload)
+                item = self._resolve_pipeline_item_for_automation(
+                    created_id=generated_id,
+                    title=generated_title,
+                    query=generated_query,
+                    created_at=generated_created_at,
+                ) or item
+
+            processed_items.append(
+                {
+                    "generatedTopicId": item.id,
+                    "title": item.title,
+                    "query": item.query,
+                    "status": item.status,
+                    "postId": item.post_id,
+                    "path": item.path,
+                    "generatedImageUrl": build_generated_image_url(item),
+                    "imageResult": image_result,
+                    "pushResult": push_result,
+                }
+            )
+
+        return {
+            "topicRole": self._automation_topic_role,
+            "requestedCount": self._automation_topic_count,
+            "processedCount": len(processed_items),
+            "items": processed_items,
+        }
+
+    def _resolve_pipeline_item_for_automation(
+        self,
+        *,
+        created_id: str,
+        title: str,
+        query: str,
+        created_at: str,
+    ) -> PipelineItem | None:
+        pipeline = self._load_pipeline_models()
+        if not pipeline:
+            return None
+
+        if created_id:
+            exact = next((item for item in pipeline if item.id == created_id), None)
+            if exact:
+                return exact
+            by_original_id = next(
+                (
+                    item
+                    for item in pipeline
+                    if str((item.metadata or {}).get("pipeline_id_original", "")).strip() == created_id
+                ),
+                None,
+            )
+            if by_original_id:
+                return by_original_id
+
+        def matches(item: PipelineItem) -> bool:
+            title_ok = not title or item.title == title
+            query_ok = not query or item.query == query
+            created_ok = not created_at or item.created_at == created_at
+            return title_ok and query_ok and created_ok
+
+        candidates = [item for item in pipeline if matches(item)]
+        if candidates:
+            return sorted(candidates, key=lambda row: -created_at_sort_key(row.created_at))[0]
+
+        fallback = [item for item in pipeline if (not title or item.title == title) and (not query or item.query == query)]
+        if fallback:
+            return sorted(fallback, key=lambda row: -created_at_sort_key(row.created_at))[0]
+
+        return None
 
     def run_notion_actions(self) -> dict:
         with self._automation_lock:
@@ -1171,6 +1299,22 @@ class BlogAgentApi:
                 is_published=publish_now,
                 publish_date=publish_date,
             )
+            generated_image_file = str(item.metadata.get("generated_image_file", "")).strip()
+            if generated_image_file:
+                local_cover_path = GENERATED_IMAGE_DIR / generated_image_file
+                if local_cover_path.exists():
+                    uploaded_image = self.shopify.attach_article_image(
+                        blog_id=blog_id,
+                        article_id=str(article.get("id", "")).strip(),
+                        image_path=local_cover_path,
+                        alt_text=post["title"],
+                    )
+                    item.metadata["shopify_cover_image_url"] = str(uploaded_image.get("src", "")).strip()
+                    item.metadata["shopify_cover_upload_error"] = ""
+                else:
+                    item.metadata["shopify_cover_upload_error"] = (
+                        f"Generated image file missing at push time: {local_cover_path}"
+                    )
             item.status = "pushed"
             item.pushed_at = now
             item.shopify_article_id = article.get("id")

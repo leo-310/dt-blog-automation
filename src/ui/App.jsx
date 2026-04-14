@@ -76,7 +76,9 @@ export function App() {
     const shouldRetry =
       message.includes("failed to fetch") ||
       message.includes("api request") ||
-      message.includes("connection refused");
+      message.includes("connection refused") ||
+      message.includes("cannot reach blog agent api") ||
+      message.includes("timed out");
     if (!shouldRetry) return;
     const timer = window.setTimeout(() => {
       void initializeWorkspace();
@@ -85,11 +87,32 @@ export function App() {
   }, [state.error]);
 
   useEffect(() => {
+    if (!state.notionEnabled || !state.notionConfigured) return;
+
     let cancelled = false;
-    const interval = window.setInterval(async () => {
-      if (cancelled) return;
+    let inFlight = false;
+
+    const pollNotionActions = async () => {
+      if (cancelled || inFlight) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+
+      let shouldRun = false;
+      setState((current) => {
+        const blocked =
+          current.loading ||
+          current.generating ||
+          current.runningTransition ||
+          current.generatingImage ||
+          current.notionBusy;
+        shouldRun = !blocked;
+        if (blocked) return current;
+        return { ...current, notionSyncing: true };
+      });
+
+      if (!shouldRun) return;
+
+      inFlight = true;
       try {
-        setState((current) => ({ ...current, notionSyncing: true }));
         const result = await runNativeTask(() => runNotionActions());
         if (cancelled) return;
         const processed = Number(result?.processed || 0);
@@ -104,16 +127,26 @@ export function App() {
       } catch {
         // keep quiet in background polling
       } finally {
+        inFlight = false;
         if (!cancelled) {
           setState((current) => ({ ...current, notionSyncing: false }));
         }
       }
-    }, 15000);
+    };
+
+    const kickoff = window.setTimeout(() => {
+      void pollNotionActions();
+    }, 12000);
+    const interval = window.setInterval(() => {
+      void pollNotionActions();
+    }, 45000);
+
     return () => {
       cancelled = true;
+      window.clearTimeout(kickoff);
       window.clearInterval(interval);
     };
-  }, []);
+  }, [state.notionEnabled, state.notionConfigured]);
 
   const activePillar = useMemo(
     () => state.pillars.find((pillar) => pillar.pillarId === state.selectedPillarId) || state.pillars[0],
@@ -134,6 +167,8 @@ export function App() {
     mainItems[0] ||
     sideItems[0] ||
     null;
+  const selectedNotionRowUrl = getItemNotionRowUrl(selected);
+  const notionPipelineUrl = String(state.settings?.notionLinks?.blogs || "").trim();
   const controlsDisabled = state.loading || state.generating || state.runningTransition || state.generatingImage;
 
   async function initializeWorkspace() {
@@ -235,12 +270,18 @@ export function App() {
           }
         )
       );
+      const notionSuffix =
+        state.notionEnabled && state.notionConfigured
+          ? role === "main"
+            ? " Main topic row synced to Notion (status: topic)."
+            : " Topic rows synced to Notion (status: topic)."
+          : "";
       setState((current) => ({
         ...current,
         ...createWorkspaceState(generated.workspace),
         generating: false,
         operationMessage: "",
-        banner: generated.message || "Topics generated.",
+        banner: `${generated.message || "Topics generated."}${notionSuffix}`,
         keywordModalOpen: false,
         keywordInput: "",
         retryTask: null
@@ -293,9 +334,13 @@ export function App() {
 
       const banner =
         action === "approve"
-          ? "Topic approved and full blog preview generated."
+          ? state.notionEnabled && state.notionConfigured
+            ? "Topic approved, full blog preview generated, and synced to Notion."
+            : "Topic approved and full blog preview generated."
           : action === "push"
-            ? "Blog marked as pushed."
+            ? state.notionEnabled && state.notionConfigured
+              ? "Blog marked as pushed and synced to Notion."
+              : "Blog marked as pushed."
             : "Topic rejected.";
 
       await refreshWorkspace(banner);
@@ -572,10 +617,10 @@ export function App() {
               />
             </label>
             <button className="secondary-button" onClick={() => openKeywordModal("main")} disabled={controlsDisabled}>
-              Generate Main Blog
+              Generate Main Topic
             </button>
             <button className="primary-button" onClick={() => openKeywordModal("side")} disabled={controlsDisabled}>
-              {state.generating ? "Generating..." : "Generate Topics"}
+              {state.generating ? "Generating..." : "Generate Topic Ideas"}
             </button>
             <button
               className="secondary-button"
@@ -681,7 +726,25 @@ export function App() {
                   <MetaCard label="Hierarchy" value={formatHierarchyLabel(selected)} />
                   <MetaCard label="Reports To" value={selected.reports_to_main_title || "n/a"} />
                   <MetaCard label="Status" value={selected.status} />
+                  <MetaCard label="Generated At" value={formatTimestamp(selected.created_at)} />
+                  <MetaCard label="Approved At" value={formatTimestamp(selected.approved_at)} />
+                  <MetaCard label="Pushed At" value={formatTimestamp(selected.pushed_at)} />
                 </div>
+                {state.notionEnabled && state.notionConfigured ? (
+                  <div className="notion-sync-strip">
+                    <span>{notionSyncHint(selected)}</span>
+                    {selectedNotionRowUrl ? (
+                      <a href={selectedNotionRowUrl} target="_blank" rel="noreferrer">
+                        Open Notion Row
+                      </a>
+                    ) : null}
+                    {notionPipelineUrl ? (
+                      <a href={notionPipelineUrl} target="_blank" rel="noreferrer">
+                        Open Blog Pipeline DB
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="hero-actions review-actions">
                   {selected.status === "approved" || selected.status === "pushed" ? (
                     <>
@@ -901,7 +964,7 @@ export function App() {
         <div className="settings-overlay" onClick={closeKeywordModal}>
           <section className="settings-modal keyword-modal" onClick={(event) => event.stopPropagation()}>
             <div className="settings-head">
-              <h3>{state.keywordRole === "main" ? "Generate Main Blog Topic" : "Generate Blog Topics"}</h3>
+              <h3>{state.keywordRole === "main" ? "Generate Main Topic" : "Generate Topic Ideas"}</h3>
               <button className="secondary-button" onClick={closeKeywordModal}>
                 Close
               </button>
@@ -989,6 +1052,7 @@ function QueueCard({ item, active, onPick, disabled = false }) {
     <button className={`post-card ${active ? "active" : ""}`} onClick={() => onPick(item.id)} disabled={disabled}>
       <strong>{item.title}</strong>
       <span>{item.query}</span>
+      <span>Generated: {formatTimestamp(item.created_at)}</span>
       <span>{formatHierarchyLabel(item)}</span>
       {item.reports_to_main_title ? <span>Reports to: {item.reports_to_main_title}</span> : null}
       <span className={`status-pill ${item.status}`}>{item.status}</span>
@@ -1068,6 +1132,33 @@ function formatHierarchyLabel(item) {
   if (role === "pillar-company") return "Pillar (Company)";
   if (item?.topic_role === "main") return "Main Blog (CEO)";
   return "Sub Blog (Reports to Main)";
+}
+
+function getItemNotionRowUrl(item) {
+  if (!item || typeof item !== "object") return "";
+  const direct = String(item.notionPageUrl || "").trim();
+  if (direct) return direct;
+  const metadata = item.metadata && typeof item.metadata === "object" ? item.metadata : {};
+  return String(metadata.notion_page_url || "").trim();
+}
+
+function notionSyncHint(item) {
+  const status = String(item?.status || "").trim().toLowerCase();
+  if (status === "topic") return "Topic is synced to Notion. Full draft content is written after Approve.";
+  if (status === "approved" || status === "draft" || status === "pushed") {
+    return "Draft content and metadata are synced to Notion for this row.";
+  }
+  return "This row is synced to Notion.";
+}
+
+function formatTimestamp(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "n/a";
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toLocaleString();
+  }
+  return raw;
 }
 
 async function runNativeTask(task) {

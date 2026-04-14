@@ -13,6 +13,9 @@ const EMPTY_WORKSPACE = {
 };
 
 const BUILD_TIME_API_BASE = "__VITE_API_BASE_URL__";
+const DEFAULT_API_TIMEOUT_MS = 30000;
+const NOTION_API_TIMEOUT_MS = 60000;
+const LONG_RUNNING_API_TIMEOUT_MS = 240000;
 
 function apiBase() {
   if (typeof window === "undefined") return "";
@@ -76,25 +79,100 @@ export function setCustomApiBase(value) {
   return "";
 }
 
+function isLongRunningPath(path) {
+  const normalized = String(path || "").toLowerCase();
+  return (
+    normalized.includes("/api/pipeline/generate") ||
+    normalized.includes("/api/images/generate") ||
+    normalized.includes("/api/pipeline/") ||
+    normalized.includes("/approve") ||
+    normalized.includes("/push")
+  );
+}
+
+function requestTimeoutMsForPath(path) {
+  const normalized = String(path || "").toLowerCase();
+  if (normalized.includes("/api/notion/actions/run")) {
+    return NOTION_API_TIMEOUT_MS;
+  }
+  if (isLongRunningPath(normalized)) {
+    return LONG_RUNNING_API_TIMEOUT_MS;
+  }
+  return DEFAULT_API_TIMEOUT_MS;
+}
+
+function buildCandidateUrls(path, configuredBase, envBase, defaultBase) {
+  const values = [configuredBase, envBase, defaultBase].filter(Boolean);
+  const seen = new Set();
+  const candidates = [];
+  for (const base of values) {
+    const normalized = `${base}${path}`;
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    candidates.push(normalized);
+  }
+  if (!candidates.length) {
+    candidates.push(path);
+  }
+  return candidates;
+}
+
+function describeApiOrigin(url) {
+  try {
+    return new URL(url, window.location.origin).origin;
+  } catch {
+    return String(url || "current origin");
+  }
+}
+
+function normalizeRequestError(error, { url, timeoutMs }) {
+  if (!(error instanceof Error)) {
+    return new Error("API request failed.");
+  }
+
+  const lowerMessage = String(error.message || "").toLowerCase();
+  if (error.name === "AbortError") {
+    return new Error(
+      `API request to ${describeApiOrigin(url)} timed out after ${Math.ceil(timeoutMs / 1000)}s. ` +
+        "The API is slow or unavailable. Start API + UI with `npm run dev:full`, then retry."
+    );
+  }
+
+  if (
+    lowerMessage.includes("failed to fetch") ||
+    lowerMessage.includes("networkerror") ||
+    lowerMessage.includes("connection refused") ||
+    lowerMessage.includes("load failed")
+  ) {
+    return new Error(
+      `Cannot reach Blog Agent API at ${describeApiOrigin(url)}. ` +
+        "Start API + UI with `npm run dev:full` or update Settings > API Base URL."
+    );
+  }
+
+  return error;
+}
+
 async function request(path, options = {}) {
+  const { timeoutMs: timeoutOverride, ...fetchOptions } = options;
   const configuredBase = apiBase();
   const envBase = envApiBase();
   const defaultBase = inferDefaultApiBase();
-  const candidates = configuredBase
-    ? [`${configuredBase}${path}`]
-    : envBase
-      ? [`${envBase}${path}`]
-      : defaultBase
-        ? [`${defaultBase}${path}`]
-        : [path];
+  const candidates = buildCandidateUrls(path, configuredBase, envBase, defaultBase);
+  const timeoutMs = Number(timeoutOverride || requestTimeoutMsForPath(path));
   let lastError = null;
 
   for (const url of candidates) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
     try {
       const response = await fetch(url, {
         method: "GET",
         headers: { "Content-Type": "application/json" },
-        ...options
+        signal: controller.signal,
+        ...fetchOptions
       });
       const contentType = String(response.headers.get("content-type") || "").toLowerCase();
       const text = await response.text();
@@ -114,9 +192,12 @@ async function request(path, options = {}) {
       if (!response.ok) {
         throw new Error(payload.error || `Request failed: ${response.status}`);
       }
+      window.clearTimeout(timer);
       return payload;
     } catch (error) {
-      lastError = error;
+      lastError = normalizeRequestError(error, { url, timeoutMs });
+    } finally {
+      window.clearTimeout(timer);
     }
   }
 

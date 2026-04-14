@@ -230,6 +230,8 @@ And if breakouts are persistent or severe, it is worth getting professional care
 
 For a full foundation on this pillar, read [Antimicrobial Textiles - The Science](/blogs/silver-infused-vs-zinc-embedded-towels-for-skin).
 
+For a full foundation on this pillar, read [Antimicrobial Textiles - The Science](/blogs/silver-infused-vs-zinc-embedded-towels-what-actually-matters-for-skin).
+
 ## Medical Sources & Further Reading
 
 - American Academy of Dermatology. *How to treat acne*. The approved takeaway used here: dermatologists recommend gentle, non-abrasive cleansing and specifically caution that scrubbing with washcloths, sponges, and other tools can irritate acne-prone skin. https://www.aad.org/news/how-to-treat-acne

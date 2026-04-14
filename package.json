@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev-ui.mjs",
+    "dev:full": "node scripts/dev-full.mjs",
     "build": "node scripts/build-ui.mjs",
     "preview": "node scripts/serve-dist.mjs"
   },

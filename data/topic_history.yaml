@@ -89,3 +89,51 @@ history:
   cluster: custom
   created_on: '2026-04-10'
   output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-10-can-a-bath-towel-irritate-sensitive-facial-skin.md
+- title: Chemical Vs Mechanical Antimicrobial Towels For Acne-Prone Skin
+  slug: chemical-vs-mechanical-antimicrobial-towels-acne-prone-skin
+  query: chemical vs mechanical antimicrobial towels for acne-prone skin
+  cluster: custom
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-chemical-vs-mechanical-antimicrobial-towels-acne-prone-skin.md
+- title: Can Reusing A Face Towel Irritate Sensitive Skin
+  slug: can-reusing-a-face-towel-irritate-sensitive-skin
+  query: can reusing a face towel irritate sensitive skin
+  cluster: custom
+  created_on: '2026-04-17'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-17-can-reusing-a-face-towel-irritate-sensitive-skin.md
+- title: Can A Shared Bathroom Towel Make Acne-Prone Skin Feel Worse?
+  slug: can-a-shared-bathroom-towel-make-acne-prone-skin-feel-worse
+  query: can a shared bathroom towel make acne-prone skin feel worse
+  cluster: custom
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-can-a-shared-bathroom-towel-make-acne-prone-skin-feel-worse.md
+- title: Can A Washcloth Irritate Acne-Prone Skin Even If You Cleanse Gently?
+  slug: can-a-washcloth-irritate-acne-prone-skin-even-if-you-cleanse-gently
+  query: can a washcloth irritate acne-prone skin even if you cleanse gently
+  cluster: custom
+  created_on: '2026-04-17'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-17-can-a-washcloth-irritate-acne-prone-skin-even-if-you-cleanse-gently.md
+- title: Can Friction From A Towel Trigger Acne Mechanica On Your Face?
+  slug: can-towel-friction-trigger-acne-mechanica-on-your-face
+  query: towel friction acne mechanica
+  cluster: custom
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-can-towel-friction-trigger-acne-mechanica-on-your-face.md
+- title: Can Drying Your Face Too Hard Make Breakouts Worse?
+  slug: can-drying-your-face-too-hard-make-breakouts-worse
+  query: can drying your face too hard make breakouts worse
+  cluster: custom
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-can-drying-your-face-too-hard-make-breakouts-worse.md
+- title: How To Keep Towels Fresh Without Washing Daily
+  slug: how-to-keep-towels-fresh-without-washing-daily
+  query: how to keep towels fresh without washing daily
+  cluster: Practical Hygiene Playbook
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-how-to-keep-towels-fresh-without-washing-daily.md
+- title: How Towel Friction Can Trigger Acne Mechanica
+  slug: towel-friction-acne-mechanica
+  query: towel friction acne mechanica
+  cluster: custom
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-towel-friction-acne-mechanica.md

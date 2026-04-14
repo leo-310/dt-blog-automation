@@ -1,0 +1,42 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Users\HP\AppData\Roaming\nvm\v24.13.0\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.6.2
+2 info using node@v24.13.0
+3 silly config load:file:C:\Users\HP\AppData\Roaming\nvm\v24.13.0\node_modules\npm\npmrc
+4 silly config load:file:E:\Work\Doctor Towels\Blogs\blog-agent\.npmrc
+5 silly config load:file:C:\Users\HP\.npmrc
+6 silly config load:file:C:\Program Files\nodejs\etc\npmrc
+7 verbose title npm exec getdesign@latest add notion
+8 verbose argv "exec" "--" "getdesign@latest" "add" "notion"
+9 verbose logfile logs-max:10 dir:E:\Work\Doctor Towels\Blogs\blog-agent\.npm-cache-local\_logs\2026-04-14T06_42_01_880Z-
+10 verbose logfile E:\Work\Doctor Towels\Blogs\blog-agent\.npm-cache-local\_logs\2026-04-14T06_42_01_880Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+13 http fetch GET 200 https://registry.npmjs.org/npm 158ms
+14 http fetch GET 200 https://registry.npmjs.org/getdesign 102ms (cache miss)
+15 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+16 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+17 warn exec The following package was not found and will be installed: getdesign@0.6.2
+18 silly idealTree buildDeps
+19 silly fetch manifest getdesign@0.6.2
+20 silly packumentCache full:https://registry.npmjs.org/getdesign cache-miss
+21 http fetch GET 200 https://registry.npmjs.org/getdesign 878ms (cache miss)
+22 silly packumentCache full:https://registry.npmjs.org/getdesign set size:undefined disposed:false
+23 silly placeDep ROOT getdesign@0.6.2 OK for:  want: 0.6.2
+24 silly reify moves {}
+25 silly audit bulk request { getdesign: [ '0.6.2' ] }
+26 http cache getdesign@https://registry.npmjs.org/getdesign/-/getdesign-0.6.2.tgz 0ms (cache hit)
+27 silly tarball no local data for getdesign@https://registry.npmjs.org/getdesign/-/getdesign-0.6.2.tgz. Extracting by manifest.
+28 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 287ms
+29 silly audit report {}
+30 http fetch GET 200 https://registry.npmjs.org/getdesign/-/getdesign-0.6.2.tgz 1453ms (cache miss)
+31 verbose cwd E:\Work\Doctor Towels\Blogs\blog-agent
+32 verbose os Windows_NT 10.0.26100
+33 verbose node v24.13.0
+34 verbose npm  v11.6.2
+35 notice
+35 notice New minor version of npm available! 11.6.2 -> 11.12.1
+35 notice Changelog: https://github.com/npm/cli/releases/tag/v11.12.1
+35 notice To update run: npm install -g npm@11.12.1
+35 notice  { force: true, Symbol(proc-log.meta): true }
+36 verbose exit 0
+37 info ok
