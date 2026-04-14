@@ -99,6 +99,7 @@ function stripCssImportsPlugin() {
 
 function browserDataPlugin({ seedPipeline, seedClusters }) {
   const browserDataPath = path.join(uiDir, "lib", "browserData.js");
+  const buildTimeApiBase = String(process.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
   return {
     name: "browser-data-inline",
     load(id) {
@@ -131,6 +132,7 @@ function browserDataPlugin({ seedPipeline, seedClusters }) {
           ].join("\n"),
           `const seedClusters = ${JSON.stringify(seedClusters, null, 2)};\nconst seedPipeline = ${JSON.stringify(seedPipeline, null, 2)};`
         );
+        built = built.replaceAll("__VITE_API_BASE_URL__", buildTimeApiBase);
         if (built.includes("?raw") || built.includes('from "yaml"')) {
           throw new Error("browserData.js still contains non-browser imports");
         }

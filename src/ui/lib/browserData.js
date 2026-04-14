@@ -12,6 +12,8 @@ const EMPTY_WORKSPACE = {
   shopifyBlogs: [...SHOPIFY_BLOGS]
 };
 
+const BUILD_TIME_API_BASE = "__VITE_API_BASE_URL__";
+
 function apiBase() {
   if (typeof window === "undefined") return "";
   const custom = String(window.localStorage.getItem("doctor-towels-blog-agent/api-base") || "").trim();
@@ -19,9 +21,7 @@ function apiBase() {
 }
 
 function envApiBase() {
-  const value = typeof import.meta !== "undefined" && import.meta.env
-    ? import.meta.env.VITE_API_BASE_URL
-    : "";
+  const value = BUILD_TIME_API_BASE.startsWith("__VITE_API_BASE_URL") ? "" : BUILD_TIME_API_BASE;
   return String(value || "").trim().replace(/\/+$/, "");
 }
 
