@@ -73,7 +73,13 @@ def evaluate_automation_schedule(
             next_run_at=next_run,
         )
 
-    if last_run_local and last_run_local.date() == local_now.date():
+    # Allow multiple runs in the same day if the configured time changes.
+    # We only block when the current schedule window has already been executed.
+    if (
+        last_run_local
+        and last_run_local.date() == local_now.date()
+        and last_run_local >= today_target
+    ):
         next_run = _compute_next_run_iso(
             local_now=local_now,
             daily_hour=daily_hour,
@@ -82,7 +88,7 @@ def evaluate_automation_schedule(
         )
         return AutomationDecision(
             should_run=False,
-            reason="already_ran_today",
+            reason="already_ran_for_current_window",
             next_run_at=next_run,
         )
 
