@@ -111,7 +111,15 @@ This repo now supports a single-process cloud deploy: the Python API serves both
    - `NOTION_API_TOKEN`
    - `NOTION_PARENT_PAGE_ID`
    - `BLOG_AGENT_USE_NOTION=1`
+   - Prefer setting these explicitly in production to avoid relying on ephemeral `data/notion_state.yaml`:
+     - `NOTION_PILLARS_DB_ID`
+     - `NOTION_BLOG_PIPELINE_DB_ID`
+     - `NOTION_SETTINGS_DB_ID`
 4. Deploy and open your Render URL.
+
+Notes on Notion IDs:
+- You can pass either raw UUIDs or full Notion URLs; the API now normalizes URL values to UUIDs.
+- Check `/api/notion/state` for `diagnostics.missing` if deployed UI is not showing Notion rows.
 
 ## Netlify frontend
 
@@ -133,15 +141,26 @@ You can still run the legacy CLI scheduler command:
 cd "/Users/cherubin/Desktop/blog agent" && ./run_daily.sh
 ```
 
-For settings-driven automation from the UI (`dailyTime`, `timezone`, `enabled`), call the API tick endpoint every 15 minutes:
+For settings-driven automation from the UI (`dailyTime`, `timezone`, `enabled`), call the API tick endpoint every minute:
 
 ```bash
 curl -X POST "https://<your-api-host>/api/automation/tick"
 ```
 
-Render blueprint includes a cron service (`blog-agent-automation-tick`) scheduled every 15 minutes.
-By default it posts to the internal web service URL (`http://blog-agent:10000/api/automation/tick`), so daily automation works without extra setup.
-If you prefer an external host, set `BLOG_AGENT_TICK_URL` to override the default target.
+Render blueprint includes a cron service (`blog-agent-automation-tick`) scheduled every minute.
+Set `BLOG_AGENT_TICK_URL` to your public API endpoint, for example:
+
+```bash
+BLOG_AGENT_TICK_URL="https://<your-render-web-service>/api/automation/tick"
+```
+
+The cron job now uses Python stdlib HTTP calls (not `curl`) so it runs on the default Docker image.
+Render blueprint also sets `BLOG_AGENT_BACKGROUND_LOOP=0` so cron is the single scheduler source in production.
+
+Important:
+- Time-based automation on deployed environments depends on periodic calls to `/api/automation/tick` (cron or external scheduler).
+- If `BLOG_AGENT_TICK_URL` is not set in Render cron, scheduled push/approve/generate will not run.
+- If Notion is not configured, settings now persist to `data/automation_settings.yaml` as fallback, but on ephemeral deploys this file is not durable across redeploys/restarts.
 
 Each scheduled run now performs the full workflow automatically:
 1. Generate pipeline topic(s) (`BLOG_AGENT_AUTOMATION_TOPIC_COUNT`, default `1`)

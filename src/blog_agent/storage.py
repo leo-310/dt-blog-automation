@@ -47,6 +47,23 @@ def save_pipeline(path: Path, items: list[PipelineItem]) -> None:
     path.write_text(yaml.safe_dump(payload, sort_keys=False))
 
 
+def load_automation_settings(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    raw = yaml.safe_load(path.read_text()) or {}
+    settings = raw.get("settings", raw)
+    if isinstance(settings, dict):
+        return settings
+    return {}
+
+
+def save_automation_settings(path: Path, settings: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        yaml.safe_dump({"settings": settings}, sort_keys=False),
+    )
+
+
 def build_frontmatter(title: str, description: str, excerpt: str, today: date) -> str:
     payload = {
         "title": title,

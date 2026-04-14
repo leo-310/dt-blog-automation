@@ -137,3 +137,15 @@ history:
   cluster: custom
   created_on: '2026-04-14'
   output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-towel-friction-acne-mechanica.md
+- title: Can A Bath Towel Irritate Sensitive Facial Skin?
+  slug: can-a-bath-towel-irritate-sensitive-facial-skin
+  query: can a bath towel irritate sensitive facial skin
+  cluster: custom
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-can-a-bath-towel-irritate-sensitive-facial-skin.md
+- title: Why Your Face Towel Is Breaking You Out
+  slug: why-your-face-towel-is-breaking-you-out
+  query: why your face towel is breaking you out
+  cluster: custom
+  created_on: '2026-04-14'
+  output_path: E:\Work\Doctor Towels\Blogs\blog-agent\content\posts\2026-04-14-why-your-face-towel-is-breaking-you-out.md

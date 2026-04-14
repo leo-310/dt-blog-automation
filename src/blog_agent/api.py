@@ -31,10 +31,12 @@ from .provider import BlogAgentProvider
 from .shopify import ShopifyPublisher
 from .storage import (
     ensure_directories,
+    load_automation_settings,
     load_history,
     load_keyword_clusters,
     load_pipeline,
     parse_markdown_file,
+    save_automation_settings,
     save_pipeline,
 )
 from .visibility import load_latest_visibility_report
@@ -42,6 +44,7 @@ from .visibility import load_latest_visibility_report
 GENERATED_IMAGE_DIR = CONTENT_DIR.parent / "images"
 DIST_DIR = ROOT_DIR / "dist"
 NOTION_STATE_FILE = ROOT_DIR / "data" / "notion_state.yaml"
+LOCAL_AUTOMATION_SETTINGS_FILE = ROOT_DIR / "data" / "automation_settings.yaml"
 
 
 class ThreadingWSGIServer(socketserver.ThreadingMixIn, WSGIServer):
@@ -80,6 +83,7 @@ class BlogAgentApi:
             "BLOG_AGENT_USE_SUPABASE_NAMESPACE",
             default=bool(self.supabase_url and self.supabase_service_role_key),
         )
+        self.local_settings_file = LOCAL_AUTOMATION_SETTINGS_FILE
         self._automation_lock = threading.RLock()
         self._background_loop_enabled = env_flag("BLOG_AGENT_BACKGROUND_LOOP", default=True)
         self._background_loop_interval_seconds = max(
@@ -125,12 +129,14 @@ class BlogAgentApi:
             if method == "GET" and parsed.path == "/api/pillars":
                 return self.respond(start_response, {"pillars": self.load_pillars()})
             if method == "GET" and parsed.path == "/api/notion/state":
+                notion_diag = self.notion.diagnostics()
                 return self.respond(
                     start_response,
                     {
                         "enabled": self.use_notion and self.notion.enabled,
                         "configured": self.notion.configured if self.use_notion else False,
                         "state": self.notion._state_payload(status="current"),
+                        "diagnostics": notion_diag,
                     },
                 )
             if method == "GET" and parsed.path.startswith("/api/images/"):
@@ -341,7 +347,7 @@ class BlogAgentApi:
     def load_settings(self) -> dict:
         if self.use_notion and self.notion.configured:
             return self.notion.load_settings()
-        return {
+        defaults = {
             "enabled": True,
             "dailyTime": "09:00",
             "timezone": "Asia/Kolkata",
@@ -353,6 +359,18 @@ class BlogAgentApi:
                 "blogs": self.notion.state.blog_pipeline_db_url,
                 "settings": self.notion.state.settings_db_url,
             },
+        }
+        local = load_automation_settings(self.local_settings_file)
+        notion_links = local.get("notionLinks") if isinstance(local.get("notionLinks"), dict) else {}
+        merged_links = {**defaults["notionLinks"], **{k: str(v or "") for k, v in notion_links.items()}}
+        return {
+            "enabled": bool(local.get("enabled", defaults["enabled"])),
+            "dailyTime": str(local.get("dailyTime", defaults["dailyTime"])).strip() or defaults["dailyTime"],
+            "timezone": str(local.get("timezone", defaults["timezone"])).strip() or defaults["timezone"],
+            "runNow": bool(local.get("runNow", defaults["runNow"])),
+            "lastRunAt": str(local.get("lastRunAt", defaults["lastRunAt"])).strip(),
+            "nextRunAt": str(local.get("nextRunAt", defaults["nextRunAt"])).strip(),
+            "notionLinks": merged_links,
         }
 
     def update_settings(self, payload: dict) -> dict:
@@ -375,7 +393,14 @@ class BlogAgentApi:
 
         if self.use_notion and self.notion.configured:
             return self.notion.update_settings(clean)
-        return {**self.load_settings(), **clean}
+        current = self.load_settings()
+        merged_links = {
+            **(current.get("notionLinks") or {}),
+            **(clean.get("notionLinks") or {}),
+        }
+        merged = {**current, **clean, "notionLinks": merged_links}
+        save_automation_settings(self.local_settings_file, merged)
+        return merged
 
     def setup_notion(self, *, parent_page_id: str, overwrite_existing: bool) -> dict:
         if not self.use_notion:

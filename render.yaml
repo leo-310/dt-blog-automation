@@ -24,15 +24,22 @@ services:
         sync: false
       - key: NOTION_PARENT_PAGE_ID
         sync: false
+      - key: NOTION_PILLARS_DB_ID
+        sync: false
+      - key: NOTION_BLOG_PIPELINE_DB_ID
+        sync: false
+      - key: NOTION_SETTINGS_DB_ID
+        sync: false
       - key: BLOG_AGENT_USE_SUPABASE_NAMESPACE
+        value: "0"
+      - key: BLOG_AGENT_BACKGROUND_LOOP
         value: "0"
 
   - type: cron
     name: blog-agent-automation-tick
     runtime: docker
-    schedule: "*/15 * * * *"
-    dockerCommand: |
-      sh -lc 'TICK_URL="${BLOG_AGENT_TICK_URL:-http://blog-agent:10000/api/automation/tick}"; echo "POST ${TICK_URL}"; curl -fsS -X POST "$TICK_URL"'
+    schedule: "* * * * *"
+    dockerCommand: 'sh -lc ''python -c "import os,json,sys,urllib.request; url=os.environ.get(\"BLOG_AGENT_TICK_URL\", \"\").strip(); (not url) and (print(\"BLOG_AGENT_TICK_URL is required for cron automation.\", file=sys.stderr) or sys.exit(2)); req=urllib.request.Request(url, data=json.dumps({}).encode(\"utf-8\"), headers={\"Content-Type\":\"application/json\"}, method=\"POST\"); resp=urllib.request.urlopen(req, timeout=120); body=resp.read().decode(\"utf-8\", errors=\"replace\"); print(f\"POST {url} -> {resp.status}\"); print(body[:800])"'''
     envVars:
       - key: BLOG_AGENT_TICK_URL
         sync: false

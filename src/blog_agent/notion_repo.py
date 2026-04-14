@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -43,37 +44,76 @@ class NotionRepository:
 
     def _load_state(self) -> NotionState:
         state = NotionState(
-            parent_page_id=os.getenv("NOTION_PARENT_PAGE_ID", "").strip(),
-            pillars_db_id=os.getenv("NOTION_PILLARS_DB_ID", "").strip(),
-            blog_pipeline_db_id=os.getenv("NOTION_BLOG_PIPELINE_DB_ID", "").strip(),
-            settings_db_id=os.getenv("NOTION_SETTINGS_DB_ID", "").strip(),
-            settings_page_id=os.getenv("NOTION_SETTINGS_PAGE_ID", "").strip(),
+            parent_page_id=_extract_notion_id(os.getenv("NOTION_PARENT_PAGE_ID", "").strip()),
+            pillars_db_id=_extract_notion_id(os.getenv("NOTION_PILLARS_DB_ID", "").strip()),
+            blog_pipeline_db_id=_extract_notion_id(os.getenv("NOTION_BLOG_PIPELINE_DB_ID", "").strip()),
+            settings_db_id=_extract_notion_id(os.getenv("NOTION_SETTINGS_DB_ID", "").strip()),
+            settings_page_id=_extract_notion_id(os.getenv("NOTION_SETTINGS_PAGE_ID", "").strip()),
         )
         if self.state_file.exists():
             raw = yaml.safe_load(self.state_file.read_text()) or {}
-            state.parent_page_id = str(raw.get("parent_page_id", state.parent_page_id)).strip()
-            state.pillars_db_id = str(raw.get("pillars_db_id", state.pillars_db_id)).strip()
-            state.blog_pipeline_db_id = str(raw.get("blog_pipeline_db_id", state.blog_pipeline_db_id)).strip()
-            state.settings_db_id = str(raw.get("settings_db_id", state.settings_db_id)).strip()
-            state.settings_page_id = str(raw.get("settings_page_id", state.settings_page_id)).strip()
+            state.parent_page_id = _extract_notion_id(str(raw.get("parent_page_id", state.parent_page_id)).strip())
+            state.pillars_db_id = _extract_notion_id(str(raw.get("pillars_db_id", state.pillars_db_id)).strip())
+            state.blog_pipeline_db_id = _extract_notion_id(
+                str(raw.get("blog_pipeline_db_id", state.blog_pipeline_db_id)).strip()
+            )
+            state.settings_db_id = _extract_notion_id(str(raw.get("settings_db_id", state.settings_db_id)).strip())
+            state.settings_page_id = _extract_notion_id(str(raw.get("settings_page_id", state.settings_page_id)).strip())
             state.pillars_db_url = str(raw.get("pillars_db_url", "")).strip()
             state.blog_pipeline_db_url = str(raw.get("blog_pipeline_db_url", "")).strip()
             state.settings_db_url = str(raw.get("settings_db_url", "")).strip()
+        if not state.pillars_db_id and state.pillars_db_url:
+            state.pillars_db_id = _extract_notion_id(state.pillars_db_url)
+        if not state.blog_pipeline_db_id and state.blog_pipeline_db_url:
+            state.blog_pipeline_db_id = _extract_notion_id(state.blog_pipeline_db_url)
+        if not state.settings_db_id and state.settings_db_url:
+            state.settings_db_id = _extract_notion_id(state.settings_db_url)
         return state
 
     def _save_state(self) -> None:
         payload = {
-            "parent_page_id": self.state.parent_page_id,
-            "pillars_db_id": self.state.pillars_db_id,
-            "blog_pipeline_db_id": self.state.blog_pipeline_db_id,
-            "settings_db_id": self.state.settings_db_id,
-            "settings_page_id": self.state.settings_page_id,
+            "parent_page_id": _extract_notion_id(self.state.parent_page_id),
+            "pillars_db_id": _extract_notion_id(self.state.pillars_db_id),
+            "blog_pipeline_db_id": _extract_notion_id(self.state.blog_pipeline_db_id),
+            "settings_db_id": _extract_notion_id(self.state.settings_db_id),
+            "settings_page_id": _extract_notion_id(self.state.settings_page_id),
             "pillars_db_url": self.state.pillars_db_url,
             "blog_pipeline_db_url": self.state.blog_pipeline_db_url,
             "settings_db_url": self.state.settings_db_url,
         }
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
         self.state_file.write_text(yaml.safe_dump(payload, sort_keys=False))
+
+    def diagnostics(self) -> dict[str, Any]:
+        missing: list[str] = []
+        if not self.enabled:
+            missing.append("NOTION_API_TOKEN")
+        if not self.state.parent_page_id:
+            missing.append("NOTION_PARENT_PAGE_ID")
+        if not self.state.pillars_db_id:
+            missing.append("NOTION_PILLARS_DB_ID")
+        if not self.state.blog_pipeline_db_id:
+            missing.append("NOTION_BLOG_PIPELINE_DB_ID")
+        if not self.state.settings_db_id:
+            missing.append("NOTION_SETTINGS_DB_ID")
+        return {
+            "enabled": self.enabled,
+            "configured": self.configured,
+            "missing": missing,
+            "stateFile": str(self.state_file),
+            "ids": {
+                "parentPageId": self.state.parent_page_id,
+                "pillarsDbId": self.state.pillars_db_id,
+                "blogPipelineDbId": self.state.blog_pipeline_db_id,
+                "settingsDbId": self.state.settings_db_id,
+                "settingsPageId": self.state.settings_page_id,
+            },
+            "links": {
+                "pillars": self.state.pillars_db_url,
+                "blogs": self.state.blog_pipeline_db_url,
+                "settings": self.state.settings_db_url,
+            },
+        }
 
     def setup_databases(
         self,
@@ -841,3 +881,23 @@ def _slugify(value: str) -> str:
             out.append("-")
             last_dash = True
     return "".join(out).strip("-")
+
+
+def _extract_notion_id(value: str) -> str:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return ""
+
+    hyphenated_match = re.search(
+        r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        cleaned,
+    )
+    if hyphenated_match:
+        return hyphenated_match.group(1).lower()
+
+    compact_match = re.search(r"([0-9a-fA-F]{32})", cleaned)
+    if compact_match:
+        raw = compact_match.group(1).lower()
+        return f"{raw[0:8]}-{raw[8:12]}-{raw[12:16]}-{raw[16:20]}-{raw[20:32]}"
+
+    return cleaned

@@ -35,6 +35,7 @@ const emptyState = {
   notionSyncing: false,
   notionConfigured: false,
   notionEnabled: false,
+  notionDiagnostics: null,
   apiBaseInput: getCustomApiBase(),
   notionSetupParentPageId: "",
   settings: {
@@ -193,6 +194,7 @@ export function App() {
         settings,
         notionEnabled: Boolean(nState.enabled),
         notionConfigured: Boolean(nState.configured),
+        notionDiagnostics: nState.diagnostics || null,
         banner: "API-connected workspace loaded.",
         retryTask: null
       }));
@@ -214,6 +216,7 @@ export function App() {
       settings,
       notionEnabled: Boolean(nState.enabled),
       notionConfigured: Boolean(nState.configured),
+      notionDiagnostics: nState.diagnostics || null,
       banner: message || current.banner
     }));
   }
@@ -956,6 +959,17 @@ export function App() {
               <span>Last Run: {state.settings.lastRunAt || "n/a"}</span>
               <span>Next Run: {state.settings.nextRunAt || "n/a"}</span>
             </div>
+            {state.notionEnabled && !state.notionConfigured ? (
+              <div className="settings-meta">
+                <span>
+                  Notion missing:
+                  {" "}
+                  {Array.isArray(state.notionDiagnostics?.missing) && state.notionDiagnostics.missing.length
+                    ? state.notionDiagnostics.missing.join(", ")
+                    : "unknown configuration fields"}
+                </span>
+              </div>
+            ) : null}
           </section>
         </div>
       ) : null}

@@ -1,0 +1,11 @@
+settings:
+  enabled: true
+  dailyTime: '19:54'
+  timezone: Asia/Kolkata
+  runNow: false
+  lastRunAt: ''
+  nextRunAt: ''
+  notionLinks:
+    pillars: ''
+    blogs: ''
+    settings: ''
