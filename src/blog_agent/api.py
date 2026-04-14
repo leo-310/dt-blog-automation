@@ -1345,7 +1345,7 @@ class BlogAgentApi:
 def cors_headers(extra_headers: list[tuple[str, str]]) -> list[tuple[str, str]]:
     return [
         ("Access-Control-Allow-Origin", "*"),
-        ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
+        ("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS"),
         ("Access-Control-Allow-Headers", "Content-Type"),
         *extra_headers,
     ]
