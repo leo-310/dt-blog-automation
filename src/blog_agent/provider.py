@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
+import random
+import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 
 import httpx
 
@@ -56,6 +61,98 @@ class BlogAgentProvider:
             "Content-Type": "application/json",
         }
 
+    def _max_retries(self) -> int:
+        raw = os.getenv("BLOG_AGENT_API_MAX_RETRIES", "4")
+        try:
+            return max(0, int(raw))
+        except ValueError:
+            return 4
+
+    def _retry_base_seconds(self) -> float:
+        raw = os.getenv("BLOG_AGENT_API_RETRY_BASE_SECONDS", "2")
+        try:
+            return max(0.1, float(raw))
+        except ValueError:
+            return 2.0
+
+    def _retry_max_seconds(self) -> float:
+        raw = os.getenv("BLOG_AGENT_API_RETRY_MAX_SECONDS", "30")
+        try:
+            return max(1.0, float(raw))
+        except ValueError:
+            return 30.0
+
+    @staticmethod
+    def _is_retryable_status(status_code: int) -> bool:
+        return status_code in {408, 409, 425, 429, 500, 502, 503, 504}
+
+    def _retry_delay_seconds(self, *, response: httpx.Response | None, attempt: int) -> float:
+        retry_max = self._retry_max_seconds()
+        if response is not None:
+            retry_after = str(response.headers.get("Retry-After", "")).strip()
+            if retry_after:
+                # Retry-After can be seconds or an HTTP date.
+                try:
+                    return min(retry_max, max(0.0, float(retry_after)))
+                except ValueError:
+                    try:
+                        retry_at = parsedate_to_datetime(retry_after)
+                        if retry_at.tzinfo is None:
+                            retry_at = retry_at.replace(tzinfo=timezone.utc)
+                        delta = (retry_at - datetime.now(timezone.utc)).total_seconds()
+                        return min(retry_max, max(0.0, delta))
+                    except (TypeError, ValueError):
+                        pass
+
+        backoff = min(retry_max, self._retry_base_seconds() * (2**attempt))
+        jitter = min(1.5, backoff * 0.25) * random.random()
+        return min(retry_max, backoff + jitter)
+
+    def _post_with_retries(self, *, url: str, payload: dict, timeout: float) -> httpx.Response:
+        max_retries = self._max_retries()
+        attempt = 0
+        while True:
+            try:
+                response = httpx.post(url, headers=self._headers(), json=payload, timeout=timeout)
+                if response.status_code < 400:
+                    return response
+                if self._is_retryable_status(response.status_code) and attempt < max_retries:
+                    delay = self._retry_delay_seconds(response=response, attempt=attempt)
+                    attempt += 1
+                    time.sleep(delay)
+                    continue
+                response.raise_for_status()
+                return response
+            except httpx.HTTPStatusError as exc:
+                if exc.response is not None and exc.response.status_code == 429:
+                    detail = self._extract_error_message(exc.response)
+                    raise RuntimeError(
+                        "OpenAI rate limit reached after retries. "
+                        "Wait 1-2 minutes and retry, or lower request frequency. "
+                        f"Details: {detail}"
+                    ) from exc
+                raise
+            except (httpx.TimeoutException, httpx.NetworkError, httpx.ProtocolError) as exc:
+                if attempt >= max_retries:
+                    raise RuntimeError(f"Provider request failed after retries: {exc}") from exc
+                delay = self._retry_delay_seconds(response=None, attempt=attempt)
+                attempt += 1
+                time.sleep(delay)
+
+    @staticmethod
+    def _extract_error_message(response: httpx.Response) -> str:
+        try:
+            payload = response.json()
+        except ValueError:
+            return response.text[:300] or "unknown error"
+        if isinstance(payload, dict):
+            error_block = payload.get("error")
+            if isinstance(error_block, dict):
+                message = str(error_block.get("message", "")).strip()
+                if message:
+                    return message
+        return json.dumps(payload)[:300]
+
     def _complete_with_responses(
         self,
         system_prompt: str,
@@ -83,7 +180,7 @@ class BlogAgentProvider:
         token_limit = self.config.max_output_tokens if max_output_tokens is None else max_output_tokens
         if token_limit is not None:
             payload["max_output_tokens"] = token_limit
-        response = httpx.post(url, headers=self._headers(), json=payload, timeout=120.0)
+        response = self._post_with_retries(url=url, payload=payload, timeout=120.0)
         response.raise_for_status()
         body = response.json()
         output = body.get("output", [])
@@ -119,7 +216,7 @@ class BlogAgentProvider:
         token_limit = self.config.max_output_tokens if max_output_tokens is None else max_output_tokens
         if token_limit is not None:
             payload["max_tokens"] = token_limit
-        response = httpx.post(url, headers=self._headers(), json=payload, timeout=120.0)
+        response = self._post_with_retries(url=url, payload=payload, timeout=120.0)
         response.raise_for_status()
         body = response.json()
         choice = body["choices"][0]["message"]["content"]
@@ -152,7 +249,7 @@ class BlogAgentProvider:
             "size": size,
             "output_format": output_format,
         }
-        response = httpx.post(url, headers=self._headers(), json=payload, timeout=180.0)
+        response = self._post_with_retries(url=url, payload=payload, timeout=180.0)
         response.raise_for_status()
         body = response.json()
         data = body.get("data", [])
