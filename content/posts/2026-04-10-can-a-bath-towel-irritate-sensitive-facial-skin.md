@@ -7,7 +7,6 @@ excerpt: A regular bath towel can seem harmless until your skin starts feeling t
   add friction to a routine that otherwise feels gentle.
 date: '2026-04-10'
 ---
-
 If your cleanser is gentle, your moisturizer is fine, and your skin still feels irritated after washing, the missing piece might be the step you barely think about: drying your face. A bath towel usually feels harmless. But for sensitive skin, that quick rub across damp skin can be one of the roughest parts of the whole routine.
 
 A lot of people focus on products and never question the fabric touching their face twice a day. That is the aha moment here. Sometimes the issue is not just what you put on your skin. It is also what you wipe across it.
@@ -198,7 +197,7 @@ That means asking:
 - does this support comfort or add friction?
 - does this belong in an acne-aware routine?
 
-If you want a broader framework for building a gentler routine overall, it helps to read this in the context of [Sensitive Skin - The Complete Guide](/blogs/sensitive-skin-the-complete-guide).
+If you want a broader framework for building a gentler routine overall, it helps to read this in the context of [Sensitive Skin - The Complete Guide](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/why-your-skincare-routine-might-not-be-working-if-your-towel-stays-damp-6).
 
 ---
 

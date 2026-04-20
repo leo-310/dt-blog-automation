@@ -132,7 +132,7 @@ They may not know the phrase washcloth acne irritation. They may not know what f
 
 That perspective shift is important. It moves the towel out of the generic bathroom category and into the skincare routine itself.
 
-If this topic is new to you, it may also help to read more broadly about towel habits and breakouts in the main blog discussion on [Towels & Acne - The Hidden Connection](/blogs/towels-acne-the-hidden-connection). The bigger idea is simple: skin responds to routine contact, not just ingredients.
+If this topic is new to you, it may also help to read more broadly about towel habits and breakouts in the main blog discussion on [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/can-a-damp-face-towel-keep-irritating-acne-prone-skin). The bigger idea is simple: skin responds to routine contact, not just ingredients.
 
 ---
 
@@ -227,7 +227,7 @@ If you want to review Doctor Towels' broader research materials, the brand's [re
 
 Because the current approved product facts do not include verified details on fabric composition, certifications, wash instructions, SkinShield Technology™, Dual-Side Design, Skin-Safe Fibers, 160-Wash Efficacy, or Clinical Validation, this article does not make claims about those features. The safer and more useful point is the one we can support: Doctor Towels was built to fit a skincare-first, acne-aware, gentle face-drying routine.
 
-If hygiene habits are part of what you are thinking through, you may also want to read [Towel Bacteria On Your Face: The Hygiene Step That Can Undercut Your Routine](/blogs/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine), especially if you keep wondering about dirty towel acne or how often should you wash your towel.
+If hygiene habits are part of what you are thinking through, you may also want to read [Towel Bacteria On Your Face: The Hygiene Step That Can Undercut Your Routine](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine), especially if you keep wondering about dirty towel acne or how often should you wash your towel.
 
 ---
 
@@ -244,6 +244,10 @@ When skin keeps feeling rubbed, reactive, or uncomfortable after cleansing, the 
 If acne is persistent, severe, painful, or leaving marks, it is a good idea to see a dermatology professional for individualized care.
 
 ---
+
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
+
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
 
 ## Medical Sources & Further Reading
 

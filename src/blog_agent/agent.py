@@ -277,10 +277,9 @@ def normalize_internal_links(links: list[str]) -> list[str]:
 
 
 def build_cluster_main_blog_link(cluster: KeywordCluster) -> str:
-    primary = cluster.main_topic.strip() or cluster.pillar_name.strip()
-    if not primary:
-        return ""
-    return f"/blogs/{sanitize_slug(primary)}"
+    # Canonical Shopify article URLs require blog-handle/article-handle and are
+    # only known after push. Avoid injecting guessed `/blogs/<slug>` links.
+    return ""
 
 
 def ensure_plan_has_main_blog_link(plan: BlogPlan, cluster: KeywordCluster) -> None:

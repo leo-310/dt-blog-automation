@@ -1,7 +1,7 @@
 settings:
   enabled: true
-  dailyTime: '19:54'
-  timezone: Asia/Kolkata
+  dailyTime: 08:45
+  timezone: UTC
   runNow: false
   lastRunAt: ''
   nextRunAt: ''

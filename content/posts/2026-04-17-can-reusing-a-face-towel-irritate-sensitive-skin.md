@@ -107,7 +107,7 @@ We should be careful here: the approved medical sources provided for this articl
 
 A shared or multi-use towel can feel less clean in a skincare routine, especially if you are already trying to be intentional about what touches sensitive skin. That is why **face towel hygiene** comes up so often in real customer language, and why people ask **how often should you wash your towel** when they are troubleshooting irritation.
 
-If you want more context on the hygiene side of the towel step, our related article on [towel bacteria and the hygiene step that can undercut your routine](/blogs/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine) explores that routine question in more detail.
+If you want more context on the hygiene side of the towel step, our related article on [towel bacteria and the hygiene step that can undercut your routine](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine) explores that routine question in more detail.
 
 ### The Towel Step Gets Treated Like It Does Not Count
 
@@ -214,7 +214,7 @@ If breakouts are persistent, painful, or worsening, it is worth seeing a dermato
 
 That is especially true if you have been trying to troubleshoot on your own for a while.
 
-For a broader look at the hidden routine connection between fabrics, friction, and breakouts, you can also read our main pillar article here: [Towels & Acne - The Hidden Connection](/blogs/towels-acne-the-hidden-connection).
+For a broader look at the hidden routine connection between fabrics, friction, and breakouts, you can also read our main pillar article here: [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/can-a-damp-face-towel-keep-irritating-acne-prone-skin).
 
 ---
 
@@ -253,6 +253,10 @@ If your skin feels irritated after drying your face, if using the same face towe
 Once you treat it that way, better choices become easier to see.
 
 ---
+
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
+
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
 
 ## Medical Sources & Further Reading
 

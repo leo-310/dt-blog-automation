@@ -5,7 +5,7 @@ import json
 import os
 import unittest
 
-from blog_agent.api import BlogAgentApi
+from blog_agent.api import BlogAgentApi, build_orphan_pipeline_rows_from_posts
 
 
 def run_wsgi_request(app: BlogAgentApi, method: str, path: str, payload: dict | None = None) -> tuple[str, dict]:
@@ -61,6 +61,40 @@ class ApiRouteTests(unittest.TestCase):
         status, payload = run_wsgi_request(self.app, "POST", "/api/automation/run-now", payload={})
         self.assertTrue(status.startswith("201"))
         self.assertTrue(payload["executed"])
+
+    def test_build_orphan_pipeline_rows_from_posts(self) -> None:
+        existing = [
+            {
+                "id": "topic-1",
+                "post_id": "already-tracked.md",
+                "path": "/tmp/already-tracked.md",
+            }
+        ]
+        posts = [
+            {
+                "id": "already-tracked.md",
+                "title": "Already Tracked",
+                "date": "2026-04-20",
+            },
+            {
+                "id": "manual-generated.md",
+                "title": "Manual Generated",
+                "description": "Manual description",
+                "excerpt": "Manual excerpt",
+                "date": "2026-04-19",
+                "html": "<p>Manual body</p>",
+            },
+        ]
+
+        rows = build_orphan_pipeline_rows_from_posts(posts=posts, existing_items=existing)
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["post_id"], "manual-generated.md")
+        self.assertEqual(row["status"], "draft")
+        self.assertEqual(row["scheduled_for"], "2026-04-19")
+        self.assertEqual(row["created_at"], "2026-04-19T00:00:00+00:00")
+        self.assertTrue(row["hasGeneratedDraft"])
+        self.assertTrue(row["metadata"].get("manual_import"))
 
 
 if __name__ == "__main__":

@@ -138,7 +138,13 @@ curl -X POST "http://127.0.0.1:8124/api/pipeline/generate" \
 You can still run the legacy CLI scheduler command:
 
 ```bash
-cd "/Users/cherubin/Desktop/blog agent" && ./run_daily.sh
+cd /path/to/blog-agent && ./run_daily.sh
+```
+
+On Windows PowerShell:
+
+```powershell
+.\run-daily.ps1
 ```
 
 For settings-driven automation from the UI (`dailyTime`, `timezone`, `enabled`), call the API tick endpoint every minute:

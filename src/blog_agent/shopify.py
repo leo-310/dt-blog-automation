@@ -113,6 +113,60 @@ class ShopifyPublisher:
             raise RuntimeError(f"Shopify articleCreate failed: {error_text}")
         return data["articleCreate"]["article"]
 
+    def get_article(self, *, article_id: str) -> dict[str, Any]:
+        query = """
+        query GetArticle($id: ID!) {
+          node(id: $id) {
+            ... on Article {
+              id
+              title
+              handle
+              body
+              blog {
+                id
+                title
+                handle
+              }
+            }
+          }
+        }
+        """
+        normalized_id = self._normalize_article_gid(article_id)
+        data = self._graphql(query, {"id": normalized_id})
+        article = data.get("node")
+        if not isinstance(article, dict):
+            raise RuntimeError("Shopify article lookup failed: article not found.")
+        return article
+
+    def update_article_body(self, *, article_id: str, body_html: str) -> dict[str, Any]:
+        mutation = """
+        mutation UpdateArticleBody($id: ID!, $article: ArticleUpdateInput!) {
+          articleUpdate(id: $id, article: $article) {
+            article {
+              id
+              handle
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+        """
+        normalized_id = self._normalize_article_gid(article_id)
+        data = self._graphql(mutation, {"id": normalized_id, "article": {"body": body_html}})
+        user_errors = data["articleUpdate"]["userErrors"]
+        if user_errors:
+            error_text = ", ".join(
+                f"{'.'.join(err.get('field') or []) or 'field'}: {err.get('message', 'unknown error')}"
+                for err in user_errors
+            )
+            raise RuntimeError(f"Shopify articleUpdate failed: {error_text}")
+        article = data["articleUpdate"].get("article")
+        if not isinstance(article, dict):
+            raise RuntimeError("Shopify articleUpdate failed: missing article payload.")
+        return article
+
     def attach_article_image(
         self,
         *,
@@ -212,6 +266,19 @@ class ShopifyPublisher:
             if maybe_numeric.isdigit():
                 return maybe_numeric
         raise RuntimeError(f"Unsupported Shopify ID format: {cleaned}")
+
+    @staticmethod
+    def _normalize_article_gid(value: str) -> str:
+        cleaned = str(value or "").strip()
+        if not cleaned:
+            raise RuntimeError("Missing Shopify article ID value.")
+        if cleaned.startswith("gid://shopify/Article/"):
+            return cleaned
+        if cleaned.startswith("gid://"):
+            return cleaned
+        if cleaned.isdigit():
+            return f"gid://shopify/Article/{cleaned}"
+        raise RuntimeError(f"Unsupported Shopify article ID format: {cleaned}")
 
     def _get_access_token(self) -> str:
         now = datetime.now(UTC)

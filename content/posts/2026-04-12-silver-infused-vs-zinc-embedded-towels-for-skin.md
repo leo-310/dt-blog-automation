@@ -123,7 +123,7 @@ And when the towel step is an afterthought, a few things tend to happen:
 
 If that sounds familiar, the answer is usually not to chase the loudest antimicrobial claim. It is to build a face-drying routine that is more skin-aware from the start.
 
-For readers trying to think through acne-safe fabric choices more broadly, our guide on [acne-safe towels](/blogs/acne-safe-towels-guide) is a useful next layer.
+For readers trying to think through acne-safe fabric choices more broadly, our guide on acne-safe towels is a useful next layer.
 
 ---
 
@@ -181,7 +181,7 @@ That means:
 - dry with minimal friction
 - apply the rest of your skincare without rushing or rubbing
 
-If you want more context on how fabric claims fit into acne-aware routines, the broader [Antimicrobial Textiles - The Science](/blogs/antimicrobial-textiles-the-science) discussion can help frame the question.
+If you want more context on how fabric claims fit into acne-aware routines, the broader [Antimicrobial Textiles - The Science](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/silver-infused-vs-zinc-embedded-towels-what-actually-matters-for-skin) discussion can help frame the question.
 
 ---
 
@@ -228,9 +228,9 @@ And if breakouts are persistent or severe, it is worth getting professional care
 
 ---
 
-For a full foundation on this pillar, read [Antimicrobial Textiles - The Science](/blogs/silver-infused-vs-zinc-embedded-towels-for-skin).
+For a full foundation on this pillar, read [Antimicrobial Textiles - The Science](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/silver-infused-vs-zinc-embedded-towels-what-actually-matters-for-skin).
 
-For a full foundation on this pillar, read [Antimicrobial Textiles - The Science](/blogs/silver-infused-vs-zinc-embedded-towels-what-actually-matters-for-skin).
+For a full foundation on this pillar, read [Antimicrobial Textiles - The Science](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/silver-infused-vs-zinc-embedded-towels-what-actually-matters-for-skin).
 
 ## Medical Sources & Further Reading
 

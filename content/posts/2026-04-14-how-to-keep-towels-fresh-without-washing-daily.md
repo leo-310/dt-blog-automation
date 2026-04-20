@@ -195,7 +195,7 @@ This is the mindset shift that helps most.
 - choose habits that reduce friction and irritation
 - build a repeatable face-drying routine instead of improvising with whatever towel is nearby
 
-If you want a deeper routine framework, our practical guide on [towel hygiene](/blogs/towel-hygiene-practical-playbook) connects these habits to everyday bathroom use in a simple way.
+If you want a deeper routine framework, our practical guide on towel hygiene connects these habits to everyday bathroom use in a simple way.
 
 ---
 
@@ -216,7 +216,7 @@ If you are comparing options, the useful question is not which towel sounds the 
 
 Doctor Towels also maintains a public [research page](https://www.doctortowels.com/pages/research-page) and a [testing report](https://cdn.shopify.com/s/files/1/0376/8529/7196/files/Testing_Report.pdf?v=1758528655) for readers who want to review brand-provided technical material directly. Because the approved facts for this article do not include product-performance claims from those documents, they are best treated here as additional reading rather than as claims repeated in this article.
 
-If you want more context on how towel choices fit into an acne-aware routine, our guide to [acne-safe towels](/blogs/acne-safe-towels-guide) explores that question in more detail.
+If you want more context on how towel choices fit into an acne-aware routine, our guide to acne-safe towels explores that question in more detail.
 
 ---
 
@@ -239,7 +239,7 @@ Persistent or severe acne concerns should be evaluated by a qualified medical pr
 
 ---
 
-For a full foundation on this pillar, read [Towel Hygiene & Bathroom Health](/blogs/how-to-keep-towels-fresh-without-washing-daily).
+For a full foundation on this pillar, read [Towel Hygiene & Bathroom Health](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/how-to-keep-towels-fresh-without-washing-daily).
 
 ## Medical Sources & Further Reading
 

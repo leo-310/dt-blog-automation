@@ -11,7 +11,7 @@ import time
 from datetime import UTC, date, datetime, timedelta
 from http import HTTPStatus
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 from wsgiref.simple_server import WSGIServer, make_server
 
 import httpx
@@ -650,10 +650,23 @@ class BlogAgentApi:
         generated = 0
         approved = 0
         pushed = 0
+        shopify_path_hydrated = 0
+        shopify_backlinks_repaired = 0
         errors = 0
         error_details: list[dict[str, str]] = []
 
         pipeline = self._load_pipeline_models()
+        shopify_path_hydrated = self._hydrate_shopify_paths_for_pipeline(pipeline)
+        shopify_backlinks_repaired = self._repair_shopify_backlinks(pipeline)
+        hierarchy_repaired = 0
+        repaired_ids: set[str] = set()
+        for current_pillar_id in sorted({str(item.pillar_id or "").strip() for item in pipeline if str(item.pillar_id or "").strip()}):
+            for changed_item in synchronize_pillar_hierarchy(pipeline=pipeline, pillar_id=current_pillar_id):
+                if changed_item.id in repaired_ids:
+                    continue
+                self._persist_pipeline_item(changed_item, pipeline=pipeline)
+                repaired_ids.add(changed_item.id)
+                hierarchy_repaired += 1
         actionable = [item for item in pipeline if is_action_candidate(item)]
         ordered = sorted(
             actionable,
@@ -766,9 +779,90 @@ class BlogAgentApi:
             "generated": generated,
             "approved": approved,
             "pushed": pushed,
+            "shopifyPathHydrated": shopify_path_hydrated,
+            "shopifyBacklinksRepaired": shopify_backlinks_repaired,
+            "hierarchyRepaired": hierarchy_repaired,
             "errors": errors,
             "errorDetails": error_details,
         }
+
+    def _hydrate_shopify_paths_for_pipeline(self, pipeline: list[PipelineItem]) -> int:
+        if not self.shopify.enabled:
+            return 0
+        hydrated = 0
+        for item in pipeline:
+            if item.status != "pushed" or not str(item.shopify_article_id or "").strip():
+                continue
+            metadata = item.metadata if isinstance(item.metadata, dict) else {}
+            existing_url = str(metadata.get("shopify_article_url", "")).strip()
+            has_canonical_url = existing_url.startswith("/blogs/") and existing_url.count("/") >= 3
+            has_blog_handle = bool(str(metadata.get("shopify_blog_handle", "")).strip())
+            has_article_handle = bool(str(item.shopify_article_handle or "").strip())
+            if has_canonical_url and has_blog_handle and has_article_handle:
+                continue
+            try:
+                article = self.shopify.get_article(article_id=str(item.shopify_article_id))
+            except Exception:  # noqa: BLE001
+                continue
+            blog_payload = article.get("blog") if isinstance(article.get("blog"), dict) else {}
+            blog_handle = str(blog_payload.get("handle", "")).strip()
+            article_handle = str(article.get("handle", "")).strip()
+            blog_id = str(blog_payload.get("id", "")).strip()
+
+            changed = False
+            if article_handle and article_handle != str(item.shopify_article_handle or "").strip():
+                item.shopify_article_handle = article_handle
+                changed = True
+            if blog_id and blog_id != str(item.shopify_blog_id or "").strip():
+                item.shopify_blog_id = blog_id
+                changed = True
+            if blog_handle and blog_handle != str(metadata.get("shopify_blog_handle", "")).strip():
+                metadata["shopify_blog_handle"] = blog_handle
+                changed = True
+            if blog_handle and article_handle:
+                canonical_url = f"/blogs/{sanitize_slug(blog_handle)}/{sanitize_slug(article_handle)}"
+                if canonical_url != existing_url:
+                    metadata["shopify_article_url"] = canonical_url
+                    changed = True
+            if changed:
+                item.metadata = metadata
+                self._persist_pipeline_item(item, pipeline=pipeline)
+                hydrated += 1
+        return hydrated
+
+    def _repair_shopify_backlinks(self, pipeline: list[PipelineItem]) -> int:
+        if not self.shopify.enabled:
+            return 0
+        blog_slug_lookup = build_pushed_blog_slug_lookup(pipeline)
+        repaired = 0
+        for item in pipeline:
+            if item.status != "pushed" or not str(item.shopify_article_id or "").strip():
+                continue
+            try:
+                article = self.shopify.get_article(article_id=str(item.shopify_article_id))
+            except Exception:  # noqa: BLE001
+                continue
+            body_html = str(article.get("body") or "")
+            if not body_html:
+                continue
+
+            fallback_url = resolve_connected_main_blog_url(item, pipeline) or build_main_blog_url(item)
+            updated_html, changed = rewrite_short_blog_hrefs_in_html(
+                body_html,
+                blog_slug_lookup=blog_slug_lookup,
+                fallback_url=fallback_url,
+            )
+            if not changed:
+                continue
+            try:
+                self.shopify.update_article_body(
+                    article_id=str(item.shopify_article_id),
+                    body_html=updated_html,
+                )
+            except Exception:  # noqa: BLE001
+                continue
+            repaired += 1
+        return repaired
 
     def _background_loop(self) -> None:
         while True:
@@ -785,6 +879,9 @@ class BlogAgentApi:
         return None
 
     def load_pipeline_items(self) -> list[dict]:
+        posts = self.load_posts()
+        payload: list[dict] = []
+
         if self.use_notion and self.notion.configured:
             notion_items = self.notion.load_pipeline_items()
             for item in notion_items:
@@ -796,39 +893,42 @@ class BlogAgentApi:
                 item.setdefault("excerpt", "")
                 item.setdefault("description", "")
                 hydrate_hierarchy_fields(item)
-            return notion_items
+            payload = notion_items
 
-        if self.use_supabase_namespace:
+        if not payload and self.use_supabase_namespace:
             supabase_items = self.load_pipeline_items_from_supabase()
             if supabase_items:
-                return supabase_items
+                payload = supabase_items
 
-        posts_lookup = {post["id"]: post for post in self.load_posts()}
-        pipeline_items = load_pipeline(self.config.pipeline_file)
-        clusters = load_keyword_clusters(self.config.topic_file)
-        if backfill_pipeline_pillar_context(pipeline_items, clusters):
-            save_pipeline(self.config.pipeline_file, pipeline_items)
-        items = sorted(
-            pipeline_items,
-            key=lambda item: (item.scheduled_for.isoformat(), item.created_at),
-            reverse=True,
-        )
-        payload: list[dict] = []
-        for item in items:
-            post = posts_lookup.get(item.post_id)
-            payload.append(
-                {
-                    **item.model_dump(mode="json"),
-                    "html": post["html"] if post else "",
-                    "excerpt": post["excerpt"] if post else "",
-                    "description": post["description"] if post else "",
-                    "generatedImageUrl": build_generated_image_url(item),
-                    "generatedImageStyle": str(item.metadata.get("generated_image_style", "")),
-                    "hasGeneratedDraft": bool(item.post_id),
-                }
+        if not payload:
+            posts_lookup = {post["id"]: post for post in posts}
+            pipeline_items = load_pipeline(self.config.pipeline_file)
+            clusters = load_keyword_clusters(self.config.topic_file)
+            if backfill_pipeline_pillar_context(pipeline_items, clusters):
+                save_pipeline(self.config.pipeline_file, pipeline_items)
+            items = sorted(
+                pipeline_items,
+                key=lambda item: (item.scheduled_for.isoformat(), item.created_at),
+                reverse=True,
             )
-        for row in payload:
-            hydrate_hierarchy_fields(row)
+            for item in items:
+                post = posts_lookup.get(item.post_id)
+                payload.append(
+                    {
+                        **item.model_dump(mode="json"),
+                        "html": post["html"] if post else "",
+                        "excerpt": post["excerpt"] if post else "",
+                        "description": post["description"] if post else "",
+                        "generatedImageUrl": build_generated_image_url(item),
+                        "generatedImageStyle": str(item.metadata.get("generated_image_style", "")),
+                        "hasGeneratedDraft": bool(item.post_id),
+                    }
+                )
+            for row in payload:
+                hydrate_hierarchy_fields(row)
+
+        payload.extend(build_orphan_pipeline_rows_from_posts(posts=posts, existing_items=payload))
+        payload.sort(key=pipeline_payload_sort_key, reverse=True)
         return payload
 
     def load_pipeline_items_from_supabase(self) -> list[dict]:
@@ -1402,8 +1502,17 @@ class BlogAgentApi:
             item.status = "pushed"
             item.pushed_at = now
             item.shopify_article_id = article.get("id")
-            item.shopify_blog_id = blog_id
-            item.shopify_article_handle = article.get("handle")
+            article_blog = article.get("blog") if isinstance(article.get("blog"), dict) else {}
+            article_blog_id = str(article_blog.get("id", "")).strip()
+            article_blog_handle = str(article_blog.get("handle", "")).strip()
+            article_handle = str(article.get("handle", "")).strip()
+
+            item.shopify_blog_id = article_blog_id or blog_id
+            item.shopify_article_handle = article_handle or item.shopify_article_handle
+            if article_blog_handle:
+                item.metadata["shopify_blog_handle"] = article_blog_handle
+            if article_blog_handle and article_handle:
+                item.metadata["shopify_article_url"] = f"/blogs/{sanitize_slug(article_blog_handle)}/{sanitize_slug(article_handle)}"
             item.metadata["ready_to_push"] = False
             item.metadata["notion_action_error"] = ""
             changed_items = synchronize_pillar_hierarchy(pipeline=pipeline, pillar_id=item.pillar_id)
@@ -1885,19 +1994,35 @@ def blog_slug_from_post_id(post_id: str | None) -> str:
 
 
 def build_main_blog_url(item: PipelineItem) -> str:
-    handle = (item.shopify_article_handle or "").strip()
-    if handle:
-        return f"/blogs/{handle}"
-    slug = blog_slug_from_post_id(item.post_id)
-    if slug:
-        return f"/blogs/{slug}"
-    metadata_slug = str(item.metadata.get("slug", "")).strip()
-    if metadata_slug:
-        return f"/blogs/{sanitize_slug(metadata_slug)}"
-    if item.pillar_head_slug:
-        return f"/blogs/{sanitize_slug(item.pillar_head_slug)}"
-    if item.main_topic:
-        return f"/blogs/{sanitize_slug(item.main_topic)}"
+    metadata = item.metadata if isinstance(item.metadata, dict) else {}
+    canonical = str(metadata.get("shopify_article_url", "")).strip()
+    if canonical:
+        parsed = urlparse(canonical)
+        if parsed.scheme and parsed.netloc:
+            if parsed.path.startswith("/blogs/"):
+                return parsed.path
+        elif canonical.startswith("/blogs/"):
+            return canonical
+
+    blog_handle = str(metadata.get("shopify_blog_handle", "")).strip()
+    article_handle = (item.shopify_article_handle or "").strip()
+    if blog_handle and article_handle:
+        return f"/blogs/{sanitize_slug(blog_handle)}/{sanitize_slug(article_handle)}"
+
+    if item.status in {"topic", "draft", "approved"}:
+        # Keep preview-friendly fallback links for non-pushed rows.
+        if article_handle:
+            return f"/blogs/{sanitize_slug(article_handle)}"
+        slug = blog_slug_from_post_id(item.post_id)
+        if slug:
+            return f"/blogs/{slug}"
+        metadata_slug = str(item.metadata.get("slug", "")).strip()
+        if metadata_slug:
+            return f"/blogs/{sanitize_slug(metadata_slug)}"
+        if item.pillar_head_slug:
+            return f"/blogs/{sanitize_slug(item.pillar_head_slug)}"
+        if item.main_topic:
+            return f"/blogs/{sanitize_slug(item.main_topic)}"
     return ""
 
 
@@ -1905,12 +2030,13 @@ def find_reporting_main_item(item: PipelineItem, pipeline: list[PipelineItem]) -
     if item.topic_role != "side":
         return None
 
+    allowed_statuses = {"pushed"} if item.status == "pushed" else {"approved", "pushed"}
     candidates = [
         entry
         for entry in pipeline
         if entry.id != item.id
         and entry.topic_role == "main"
-        and entry.status in {"approved", "pushed"}
+        and entry.status in allowed_statuses
         and (
             (item.pillar_id and entry.pillar_id == item.pillar_id)
             or (item.main_topic and entry.main_topic and entry.main_topic == item.main_topic)
@@ -1938,8 +2064,7 @@ def resolve_connected_main_blog_url(item: PipelineItem, pipeline: list[PipelineI
     manager = find_reporting_main_item(item, pipeline)
     if manager:
         return build_main_blog_url(manager)
-
-    return build_main_blog_url(item)
+    return ""
 
 
 def assign_hierarchy_metadata(item: PipelineItem, pipeline: list[PipelineItem]) -> bool:
@@ -1983,18 +2108,205 @@ def assign_hierarchy_metadata(item: PipelineItem, pipeline: list[PipelineItem]) 
 
 def synchronize_pillar_hierarchy(*, pipeline: list[PipelineItem], pillar_id: str) -> list[PipelineItem]:
     changed: list[PipelineItem] = []
+    blog_slug_lookup = build_pushed_blog_slug_lookup(pipeline)
     for item in pipeline:
         if pillar_id and item.pillar_id != pillar_id:
             continue
         before_links = list(item.topic_internal_links)
+        markdown_changed = False
+        if item.status in {"approved", "pushed"}:
+            strip_unresolved = item.status == "pushed"
+            markdown_changed = rewrite_item_markdown_short_blog_links(
+                item=item,
+                blog_slug_lookup=blog_slug_lookup,
+                strip_unresolved=strip_unresolved,
+            )
+            normalize_item_internal_blog_links(
+                item=item,
+                blog_slug_lookup=blog_slug_lookup,
+                strip_unresolved=strip_unresolved,
+            )
         if item.topic_role == "side":
             ensure_sub_blog_has_main_blog_link(item=item, pipeline=pipeline)
             if item.status in {"approved", "pushed"}:
-                ensure_sub_blog_backlink_in_markdown(item=item, pipeline=pipeline)
+                markdown_changed = ensure_sub_blog_backlink_in_markdown(item=item, pipeline=pipeline) or markdown_changed
         metadata_changed = assign_hierarchy_metadata(item=item, pipeline=pipeline)
         links_changed = before_links != item.topic_internal_links
-        if metadata_changed or links_changed:
+        if metadata_changed or links_changed or markdown_changed:
             changed.append(item)
+    return changed
+
+
+def build_pushed_blog_slug_lookup(pipeline: list[PipelineItem]) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+    pushed_items = [item for item in pipeline if item.status == "pushed"]
+    pushed_items.sort(key=lambda item: created_at_sort_key(item.created_at), reverse=True)
+    for item in pushed_items:
+        canonical_url = build_main_blog_url(item)
+        if not canonical_url.startswith("/blogs/") or canonical_url.count("/") < 3:
+            continue
+        for slug in derive_blog_slug_candidates(item):
+            lookup.setdefault(slug, canonical_url)
+    return lookup
+
+
+def derive_blog_slug_candidates(item: PipelineItem) -> set[str]:
+    metadata = item.metadata if isinstance(item.metadata, dict) else {}
+    raw_candidates = [
+        str(item.shopify_article_handle or "").strip(),
+        str(blog_slug_from_post_id(item.post_id) or "").strip(),
+        str(metadata.get("slug", "")).strip(),
+        str(item.main_topic or "").strip(),
+        str(item.title or "").strip(),
+    ]
+    candidates = {sanitize_slug(value) for value in raw_candidates if value}
+    return {candidate for candidate in candidates if candidate}
+
+
+def short_blog_slug_from_target(target: str) -> str:
+    parsed = urlparse(str(target or "").strip())
+    path = str(parsed.path or "").strip()
+    match = re.fullmatch(r"/blogs/([^/]+)/?", path, flags=re.IGNORECASE)
+    if not match:
+        return ""
+    return sanitize_slug(unquote(match.group(1)))
+
+
+def rewrite_short_blog_links_in_markdown(
+    body: str,
+    *,
+    blog_slug_lookup: dict[str, str],
+    strip_unresolved: bool,
+) -> tuple[str, bool]:
+    if not body:
+        return body, False
+
+    changed = False
+    pattern = re.compile(r"\[([^\]]+)\]\(\s*([^)]+?)\s*\)")
+
+    def _replace(match: re.Match[str]) -> str:
+        nonlocal changed
+        anchor = str(match.group(1) or "").strip()
+        target = str(match.group(2) or "").strip()
+        slug = short_blog_slug_from_target(target)
+        if not slug:
+            return match.group(0)
+        canonical_url = blog_slug_lookup.get(slug, "")
+        if canonical_url:
+            if target != canonical_url:
+                changed = True
+            return f"[{anchor}]({canonical_url})"
+        if strip_unresolved:
+            changed = True
+            return anchor
+        return match.group(0)
+
+    updated_body = pattern.sub(_replace, body)
+    return updated_body, changed
+
+
+def rewrite_short_blog_hrefs_in_html(
+    html: str,
+    *,
+    blog_slug_lookup: dict[str, str],
+    fallback_url: str,
+) -> tuple[str, bool]:
+    if not html:
+        return html, False
+
+    changed = False
+    pattern = re.compile(r"href=(['\"])(/blogs/[^'\"#?]+)\1", flags=re.IGNORECASE)
+
+    def _replace(match: re.Match[str]) -> str:
+        nonlocal changed
+        quote = str(match.group(1) or '"')
+        target = str(match.group(2) or "").strip()
+        slug = short_blog_slug_from_target(target)
+        if not slug:
+            return match.group(0)
+
+        canonical_url = blog_slug_lookup.get(slug, "")
+        if not canonical_url and fallback_url:
+            canonical_url = fallback_url
+        if not canonical_url:
+            return match.group(0)
+        if canonical_url != target:
+            changed = True
+        return f"href={quote}{canonical_url}{quote}"
+
+    updated_html = pattern.sub(_replace, html)
+    return updated_html, changed
+
+
+def rewrite_item_markdown_short_blog_links(
+    *,
+    item: PipelineItem,
+    blog_slug_lookup: dict[str, str],
+    strip_unresolved: bool,
+) -> bool:
+    if not item.path:
+        return False
+    file_path = Path(item.path)
+    if not file_path.exists():
+        return False
+
+    raw = file_path.read_text()
+    split_token = "\n---\n"
+    if raw.startswith("---\n") and split_token in raw:
+        _head, rest = raw.split("---\n", 1)
+        frontmatter_raw, body = rest.split(split_token, 1)
+        updated_body, changed = rewrite_short_blog_links_in_markdown(
+            body.strip(),
+            blog_slug_lookup=blog_slug_lookup,
+            strip_unresolved=strip_unresolved,
+        )
+        if not changed:
+            return False
+        new_raw = f"---\n{frontmatter_raw}{split_token}{updated_body.strip()}\n"
+    else:
+        updated_body, changed = rewrite_short_blog_links_in_markdown(
+            raw.strip(),
+            blog_slug_lookup=blog_slug_lookup,
+            strip_unresolved=strip_unresolved,
+        )
+        if not changed:
+            return False
+        new_raw = f"{updated_body.strip()}\n"
+
+    if new_raw == raw:
+        return False
+    file_path.write_text(new_raw)
+    return True
+
+
+def normalize_item_internal_blog_links(
+    *,
+    item: PipelineItem,
+    blog_slug_lookup: dict[str, str],
+    strip_unresolved: bool,
+) -> bool:
+    changed = False
+    updated_links: list[str] = []
+    for link in item.topic_internal_links:
+        normalized_link = str(link or "").strip()
+        if not normalized_link:
+            continue
+        slug = short_blog_slug_from_target(normalized_link)
+        if slug:
+            canonical_url = blog_slug_lookup.get(slug, "")
+            if canonical_url:
+                if canonical_url != normalized_link:
+                    changed = True
+                updated_links.append(canonical_url)
+                continue
+            if strip_unresolved:
+                changed = True
+                continue
+        updated_links.append(normalized_link)
+    normalized = normalize_internal_links(updated_links)
+    if normalized != item.topic_internal_links:
+        item.topic_internal_links = normalized
+        changed = True
     return changed
 
 
@@ -2014,9 +2326,21 @@ def ensure_sub_blog_has_main_blog_link(item: PipelineItem, pipeline: list[Pipeli
     if item.topic_role != "side":
         return
     main_blog_url = resolve_connected_main_blog_url(item, pipeline)
-    if not main_blog_url:
+    legacy_candidates = derive_legacy_main_blog_link_candidates(
+        item=item,
+        pipeline=pipeline,
+        canonical_url=main_blog_url,
+    )
+    normalized_legacy = {re.sub(r"/+$", "", link.lower()) for link in legacy_candidates}
+    kept_links = [
+        link
+        for link in item.topic_internal_links
+        if re.sub(r"/+$", "", str(link or "").strip().lower()) not in normalized_legacy
+    ]
+    if main_blog_url:
+        item.topic_internal_links = normalize_internal_links([*kept_links, main_blog_url])
         return
-    item.topic_internal_links = normalize_internal_links([*item.topic_internal_links, main_blog_url])
+    item.topic_internal_links = normalize_internal_links(kept_links)
 
 
 def inject_backlink_into_markdown(body: str, main_blog_url: str, anchor_text: str) -> str:
@@ -2037,30 +2361,120 @@ def inject_backlink_into_markdown(body: str, main_blog_url: str, anchor_text: st
     return f"{body.rstrip()}\n\n{backlink_line}\n"
 
 
-def ensure_sub_blog_backlink_in_markdown(item: PipelineItem, pipeline: list[PipelineItem]) -> None:
+def ensure_sub_blog_backlink_in_markdown(item: PipelineItem, pipeline: list[PipelineItem]) -> bool:
     if item.topic_role != "side" or not item.path:
-        return
+        return False
     file_path = Path(item.path)
     if not file_path.exists():
-        return
+        return False
 
     main_blog_url = resolve_connected_main_blog_url(item, pipeline)
-    if not main_blog_url:
-        return
+    legacy_candidates = derive_legacy_main_blog_link_candidates(item=item, pipeline=pipeline, canonical_url=main_blog_url)
+    if not main_blog_url and not legacy_candidates:
+        return False
 
     raw = file_path.read_text()
     split_token = "\n---\n"
     if raw.startswith("---\n") and split_token in raw:
         _head, rest = raw.split("---\n", 1)
         frontmatter_raw, body = rest.split(split_token, 1)
-        updated_body = inject_backlink_into_markdown(body.strip(), main_blog_url, item.main_topic)
+        updated_body = body.strip()
+        if main_blog_url:
+            updated_body = inject_backlink_into_markdown(updated_body, main_blog_url, item.main_topic)
+        updated_body = rewrite_legacy_main_blog_links(
+            updated_body,
+            canonical_url=main_blog_url,
+            legacy_candidates=legacy_candidates,
+        )
         new_raw = f"---\n{frontmatter_raw}{split_token}{updated_body.strip()}\n"
     else:
-        updated_body = inject_backlink_into_markdown(raw.strip(), main_blog_url, item.main_topic)
+        updated_body = raw.strip()
+        if main_blog_url:
+            updated_body = inject_backlink_into_markdown(updated_body, main_blog_url, item.main_topic)
+        updated_body = rewrite_legacy_main_blog_links(
+            updated_body,
+            canonical_url=main_blog_url,
+            legacy_candidates=legacy_candidates,
+        )
         new_raw = f"{updated_body.strip()}\n"
 
     if new_raw != raw:
         file_path.write_text(new_raw)
+        return True
+    return False
+
+
+def derive_legacy_main_blog_link_candidates(
+    *,
+    item: PipelineItem,
+    pipeline: list[PipelineItem],
+    canonical_url: str,
+) -> set[str]:
+    candidates: set[str] = set()
+    metadata = item.metadata if isinstance(item.metadata, dict) else {}
+    current_report_url = str(metadata.get("reports_to_main_url", "")).strip()
+    if current_report_url.startswith("/blogs/"):
+        candidates.add(current_report_url)
+
+    manager = find_reporting_main_item(item, pipeline)
+    if not manager:
+        normalized_canonical = re.sub(r"/+$", "", canonical_url.strip().lower())
+        return {candidate for candidate in candidates if re.sub(r"/+$", "", candidate.lower()) != normalized_canonical}
+
+    article_handle = str(manager.shopify_article_handle or "").strip()
+    if article_handle:
+        candidates.add(f"/blogs/{sanitize_slug(article_handle)}")
+
+    post_slug = blog_slug_from_post_id(manager.post_id)
+    if post_slug:
+        candidates.add(f"/blogs/{sanitize_slug(post_slug)}")
+
+    metadata_slug = str((manager.metadata if isinstance(manager.metadata, dict) else {}).get("slug", "")).strip()
+    if metadata_slug:
+        candidates.add(f"/blogs/{sanitize_slug(metadata_slug)}")
+
+    if manager.main_topic:
+        candidates.add(f"/blogs/{sanitize_slug(manager.main_topic)}")
+    if manager.title:
+        candidates.add(f"/blogs/{sanitize_slug(manager.title)}")
+
+    normalized_canonical = re.sub(r"/+$", "", canonical_url.strip().lower())
+    return {candidate for candidate in candidates if re.sub(r"/+$", "", candidate.lower()) != normalized_canonical}
+
+
+def rewrite_legacy_main_blog_links(
+    body: str,
+    *,
+    canonical_url: str,
+    legacy_candidates: set[str],
+) -> str:
+    if not legacy_candidates:
+        return body
+
+    normalized_lookup = {
+        re.sub(r"/+$", "", candidate.lower()): candidate
+        for candidate in legacy_candidates
+    }
+
+    if not canonical_url:
+        def _strip_markdown_link(match: re.Match[str]) -> str:
+            anchor = str(match.group(1) or "")
+            target = str(match.group(2) or "").strip()
+            normalized = re.sub(r"/+$", "", target.lower())
+            if normalized in normalized_lookup:
+                return anchor
+            return match.group(0)
+
+        return re.sub(r"\[([^\]]+)\]\(\s*([^)]+?)\s*\)", _strip_markdown_link, body)
+
+    def _replace(match: re.Match[str]) -> str:
+        target = str(match.group(1) or "").strip()
+        normalized = re.sub(r"/+$", "", target.lower())
+        if normalized in normalized_lookup:
+            return f"]({canonical_url})"
+        return match.group(0)
+
+    return re.sub(r"\]\(\s*([^)]+?)\s*\)", _replace, body)
 
 
 def build_shopify_tags(item: PipelineItem) -> list[str]:
@@ -2107,6 +2521,134 @@ def created_at_sort_key(created_at: str) -> float:
         return datetime.fromisoformat(normalized).timestamp()
     except (ValueError, OSError):
         return float("-inf")
+
+
+def scheduled_for_sort_key(scheduled_for: str) -> float:
+    value = str(scheduled_for or "").strip()
+    if not value:
+        return float("-inf")
+    normalized = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.timestamp()
+    except (ValueError, OSError):
+        return float("-inf")
+
+
+def pipeline_payload_sort_key(item: dict) -> tuple[float, float]:
+    return (
+        scheduled_for_sort_key(str(item.get("scheduled_for", ""))),
+        created_at_sort_key(str(item.get("created_at", ""))),
+    )
+
+
+def resolve_scheduled_for_from_post(*, date_value: str, post_id: str) -> str:
+    cleaned = str(date_value or "").strip()
+    if cleaned:
+        try:
+            return date.fromisoformat(cleaned).isoformat()
+        except ValueError:
+            pass
+    match = re.match(r"^(\d{4}-\d{2}-\d{2})-", str(post_id or "").strip())
+    if match:
+        return match.group(1)
+    return date.today().isoformat()
+
+
+def build_orphan_pipeline_rows_from_posts(*, posts: list[dict], existing_items: list[dict]) -> list[dict]:
+    existing_ids = {str(item.get("id", "")).strip() for item in existing_items if str(item.get("id", "")).strip()}
+    existing_post_ids = {
+        str(item.get("post_id", "")).strip()
+        for item in existing_items
+        if str(item.get("post_id", "")).strip()
+    }
+    existing_path_names = {
+        Path(str(item.get("path", "")).strip()).name.lower()
+        for item in existing_items
+        if str(item.get("path", "")).strip()
+    }
+    valid_statuses = {"topic", "draft", "approved", "pushed", "rejected"}
+    orphans: list[dict] = []
+
+    for post in posts:
+        post_id = str(post.get("id", "")).strip()
+        if not post_id:
+            continue
+        if post_id in existing_post_ids or post_id in existing_ids:
+            continue
+
+        path_value = str(post.get("path", "")).strip()
+        path_name = Path(path_value).name.lower() if path_value else ""
+        if path_name and path_name in existing_path_names:
+            continue
+
+        base_id = f"manual-{Path(post_id).stem}"
+        candidate_id = base_id
+        counter = 2
+        while candidate_id in existing_ids:
+            candidate_id = f"{base_id}-{counter}"
+            counter += 1
+
+        status = str(post.get("pipelineStatus", "draft")).strip().lower()
+        if status not in valid_statuses:
+            status = "draft"
+
+        scheduled_for = resolve_scheduled_for_from_post(
+            date_value=str(post.get("date", "")),
+            post_id=post_id,
+        )
+        created_at = f"{scheduled_for}T00:00:00+00:00"
+        if path_value:
+            local_path = Path(path_value)
+            if local_path.exists():
+                created_at = datetime.fromtimestamp(local_path.stat().st_mtime, tz=UTC).isoformat(timespec="seconds")
+
+        row = {
+            "id": candidate_id,
+            "post_id": post_id,
+            "title": str(post.get("title", post_id)).strip() or post_id,
+            "query": str(post.get("query", "")).strip() or "Manual import",
+            "cluster": str(post.get("cluster", "")).strip() or "Manual import",
+            "pillar_id": "",
+            "pillar_name": str(post.get("pillarName", "")).strip(),
+            "pillar_claim": "",
+            "main_topic": str(post.get("mainTopic", "")).strip(),
+            "sub_blog_tag": str(post.get("subBlogTag", "")).strip(),
+            "is_pillar_head": False,
+            "pillar_head_post_id": None,
+            "pillar_head_slug": None,
+            "planned_keywords": [],
+            "path": path_value or None,
+            "scheduled_for": scheduled_for,
+            "status": status,
+            "topic_role": "side",
+            "created_at": created_at,
+            "approved_at": None,
+            "pushed_at": None,
+            "shopify_article_id": None,
+            "shopify_blog_id": None,
+            "shopify_article_handle": None,
+            "topic_angle": "",
+            "topic_outline": [],
+            "topic_internal_links": [],
+            "guideline_report": None,
+            "metadata": {"manual_import": True},
+            "html": str(post.get("html", "")),
+            "excerpt": str(post.get("excerpt", "")),
+            "description": str(post.get("description", "")),
+            "generatedImageUrl": "",
+            "generatedImageStyle": "",
+            "hasGeneratedDraft": True,
+        }
+        hydrate_hierarchy_fields(row)
+        orphans.append(row)
+        existing_ids.add(candidate_id)
+        existing_post_ids.add(post_id)
+        if path_name:
+            existing_path_names.add(path_name)
+    return orphans
 
 
 def action_priority(item: PipelineItem) -> tuple[int, float]:

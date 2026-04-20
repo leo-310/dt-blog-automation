@@ -136,7 +136,7 @@ That is often the real entry point into this topic. Not a huge revelation. Just 
 
 If you have ever searched **why your towel is breaking you out** or **dirty towel acne**, what you are usually trying to solve is not one isolated cause. You are trying to reduce avoidable routine stress.
 
-For a related read on the hygiene side of the towel conversation, Doctor Towels also has a main blog article here: [/blogs/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine](/blogs/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
+For a related read on the hygiene side of the towel conversation, Doctor Towels also has a main blog article here: [/blogs/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
 
 ---
 
@@ -225,7 +225,7 @@ Within the approved product knowledge, Doctor Towels can be described as:
 
 If you want to explore the product itself, the natural internal product link is here: [/products/doctor-towels](/products/doctor-towels).
 
-And if you want the broader pillar context around towels and breakouts, this article fits into: [/blogs/towels-acne-the-hidden-connection](/blogs/towels-acne-the-hidden-connection).
+And if you want the broader pillar context around towels and breakouts, this article fits into: [/blogs/towels-acne-the-hidden-connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/can-a-damp-face-towel-keep-irritating-acne-prone-skin).
 
 Because the current approved source set does **not** support detailed claims about fabric composition, certifications, wash instructions, SkinShield Technology™, Dual-Side Design, Skin-Safe Fibers, 160-Wash Efficacy, Clinical Validation, or proprietary clinical data points, those claims are intentionally not expanded here as factual assertions. Readers can review the brand's own research materials directly:
 
@@ -251,6 +251,10 @@ Sometimes the most helpful skincare shift is not adding another product. It is n
 If acne is persistent, painful, scarring, or severe, seek care from a licensed dermatologist or other qualified medical professional.
 
 ---
+
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
+
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
 
 ## Medical Sources & Further Reading
 

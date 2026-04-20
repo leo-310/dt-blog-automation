@@ -181,7 +181,7 @@ Ask practical questions instead:
 - does the claim explain anything meaningful about real use?
 - does the towel encourage patting instead of rubbing?
 
-This is where category education matters. If you want a deeper framework for evaluating textile claims, the broader science discussion at [/blogs/antimicrobial-textiles-the-science](/blogs/antimicrobial-textiles-the-science) can help place those claims in context.
+This is where category education matters. If you want a deeper framework for evaluating textile claims, the broader science discussion at [/blogs/antimicrobial-textiles-the-science](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/silver-infused-vs-zinc-embedded-towels-what-actually-matters-for-skin) can help place those claims in context.
 
 ### 4. Pay Attention To How Your Skin Feels Right After Drying
 

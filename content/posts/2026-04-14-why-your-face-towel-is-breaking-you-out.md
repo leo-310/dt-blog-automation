@@ -123,7 +123,7 @@ Drying happens right after cleansing. That matters because skin has just been ex
 
 This is one reason the towel step belongs in the same conversation as cleansers, serums, and barrier-friendly habits. It is not an afterthought if it touches your face every day.
 
-If you want a broader read on this hidden routine variable, Doctor Towels has a related article here: [/blogs/towels-acne-the-hidden-connection](/blogs/towels-acne-the-hidden-connection).
+If you want a broader read on this hidden routine variable, Doctor Towels has a related article here: [/blogs/towels-acne-the-hidden-connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/can-a-damp-face-towel-keep-irritating-acne-prone-skin).
 
 ---
 
@@ -303,7 +303,11 @@ Your cleanser is not the whole routine. Your serum is not the whole routine. And
 
 ---
 
-For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
+
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
+
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
 
 ## Medical Sources & Further Reading
 

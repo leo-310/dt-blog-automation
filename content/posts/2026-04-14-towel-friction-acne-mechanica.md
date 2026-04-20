@@ -136,7 +136,7 @@ That last point matters. Sometimes the first sign that a towel is not working fo
 
 If this sounds familiar, it can help to zoom out. The goal is not to panic about every fabric touch. The goal is to make the face-drying routine match the same standard of care you already expect from the rest of your skincare.
 
-For a broader look at how towels fit into breakout-prone routines, readers may also find this related article useful: [/blogs/towels-acne-the-hidden-connection](/blogs/towels-acne-the-hidden-connection).
+For a broader look at how towels fit into breakout-prone routines, readers may also find this related article useful: [/blogs/towels-acne-the-hidden-connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/can-a-damp-face-towel-keep-irritating-acne-prone-skin).
 
 ---
 
@@ -179,7 +179,7 @@ What we can say is this:
 - a dedicated face towel is often easier to manage intentionally than a shared bath towel
 - cleanliness and comfort both belong in an acne-aware routine
 
-If hygiene is the main issue on your mind, this related read may help: [/blogs/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine](/blogs/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
+If hygiene is the main issue on your mind, this related read may help: [/blogs/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
 
 ### 4. Reduce Pressure On Active Breakouts
 
@@ -244,7 +244,7 @@ Because this article must not invent or overstate unsupported claims, those poin
 
 If you are comparing options, the useful question is not whether a towel will fix acne. It is whether your face towel supports less friction, less irritation, and a more intentional routine.
 
-For readers exploring that angle further, this companion guide may help: [/blogs/acne-safe-towels-guide](/blogs/acne-safe-towels-guide).
+For readers exploring that angle further, this companion guide may help: /blogs/acne-safe-towels-guide.
 
 ---
 
@@ -263,6 +263,10 @@ So if you have been asking questions like towels cause acne, why your towel is b
 That perspective shift is often enough to change the routine for the better. Not because a towel is magic, but because skin usually does better when everyday contact is more gentle, more intentional, and more skincare-aware.
 
 ---
+
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
+
+For a full foundation on this pillar, read [Towels & Acne - The Hidden Connection](/blogs/tips-and-diy-on-skincare-wellness-personal-hygiene-1/towel-bacteria-on-your-face-the-hygiene-step-that-can-undercut-your-routine).
 
 ## Medical Sources & Further Reading
 
