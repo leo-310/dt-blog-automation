@@ -24,10 +24,14 @@ class BlogAgentProvider:
         model: str | None = None,
         max_output_tokens: int | None = None,
     ) -> str:
-        if not self.config.api_key:
-            raise RuntimeError(
-                "Missing API key. Set BLOG_AGENT_API_KEY or OPENAI_API_KEY before running the generator."
+        if self._resolve_provider() == "gemini":
+            return self._complete_with_gemini(
+                system_prompt,
+                user_prompt,
+                model=model,
+                max_output_tokens=max_output_tokens,
             )
+        self._require_openai_api_key()
         mode = self._resolve_mode()
         if mode == "responses":
             try:
@@ -47,6 +51,24 @@ class BlogAgentProvider:
             max_output_tokens=max_output_tokens,
         )
 
+    def _resolve_provider(self) -> str:
+        provider = self.config.provider.strip().lower()
+        if provider in {"gemini", "google"}:
+            return "gemini"
+        return "openai"
+
+    def _require_openai_api_key(self) -> None:
+        if not self.config.api_key:
+            raise RuntimeError(
+                "Missing API key. Set BLOG_AGENT_API_KEY or OPENAI_API_KEY before running the OpenAI generator."
+            )
+
+    def _require_gemini_api_key(self) -> None:
+        if not self.config.gemini_api_key:
+            raise RuntimeError(
+                "Missing Gemini API key. Set GEMINI_API_KEY before running the Gemini generator."
+            )
+
     def _resolve_mode(self) -> str:
         configured = self.config.api_mode.strip().lower()
         if configured in {"responses", "chat"}:
@@ -55,9 +77,15 @@ class BlogAgentProvider:
             return "responses"
         return "chat"
 
-    def _headers(self) -> dict[str, str]:
+    def _openai_headers(self) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {self.config.api_key}",
+            "Content-Type": "application/json",
+        }
+
+    def _gemini_headers(self) -> dict[str, str]:
+        return {
+            "x-goog-api-key": self.config.gemini_api_key,
             "Content-Type": "application/json",
         }
 
@@ -108,12 +136,20 @@ class BlogAgentProvider:
         jitter = min(1.5, backoff * 0.25) * random.random()
         return min(retry_max, backoff + jitter)
 
-    def _post_with_retries(self, *, url: str, payload: dict, timeout: float) -> httpx.Response:
+    def _post_with_retries(
+        self,
+        *,
+        url: str,
+        payload: dict,
+        timeout: float,
+        headers: dict[str, str],
+        provider_name: str,
+    ) -> httpx.Response:
         max_retries = self._max_retries()
         attempt = 0
         while True:
             try:
-                response = httpx.post(url, headers=self._headers(), json=payload, timeout=timeout)
+                response = httpx.post(url=url, headers=headers, json=payload, timeout=timeout)
                 if response.status_code < 400:
                     return response
                 if self._is_retryable_status(response.status_code) and attempt < max_retries:
@@ -127,7 +163,7 @@ class BlogAgentProvider:
                 if exc.response is not None and exc.response.status_code == 429:
                     detail = self._extract_error_message(exc.response)
                     raise RuntimeError(
-                        "OpenAI rate limit reached after retries. "
+                        f"{provider_name} rate limit or quota reached after retries. "
                         "Wait 1-2 minutes and retry, or lower request frequency. "
                         f"Details: {detail}"
                     ) from exc
@@ -180,7 +216,13 @@ class BlogAgentProvider:
         token_limit = self.config.max_output_tokens if max_output_tokens is None else max_output_tokens
         if token_limit is not None:
             payload["max_output_tokens"] = token_limit
-        response = self._post_with_retries(url=url, payload=payload, timeout=120.0)
+        response = self._post_with_retries(
+            url=url,
+            payload=payload,
+            timeout=120.0,
+            headers=self._openai_headers(),
+            provider_name="OpenAI",
+        )
         response.raise_for_status()
         body = response.json()
         output = body.get("output", [])
@@ -216,7 +258,13 @@ class BlogAgentProvider:
         token_limit = self.config.max_output_tokens if max_output_tokens is None else max_output_tokens
         if token_limit is not None:
             payload["max_tokens"] = token_limit
-        response = self._post_with_retries(url=url, payload=payload, timeout=120.0)
+        response = self._post_with_retries(
+            url=url,
+            payload=payload,
+            timeout=120.0,
+            headers=self._openai_headers(),
+            provider_name="OpenAI",
+        )
         response.raise_for_status()
         body = response.json()
         choice = body["choices"][0]["message"]["content"]
@@ -228,6 +276,68 @@ class BlogAgentProvider:
             raise RuntimeError(f"Unexpected provider response: {json.dumps(body)[:500]}")
         return choice
 
+    def _complete_with_gemini(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        model: str | None = None,
+        max_output_tokens: int | None = None,
+    ) -> str:
+        self._require_gemini_api_key()
+        model_name = self._resolve_gemini_model(model)
+        url = f"{self.config.gemini_api_base_url.rstrip('/')}/models/{model_name}:generateContent"
+        generation_config: dict[str, object] = {
+            "temperature": self.config.temperature,
+            "responseMimeType": "text/plain",
+        }
+        token_limit = self.config.max_output_tokens if max_output_tokens is None else max_output_tokens
+        if token_limit is not None:
+            generation_config["maxOutputTokens"] = token_limit
+        payload = {
+            "system_instruction": {
+                "parts": [{"text": system_prompt}],
+            },
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": user_prompt}],
+                }
+            ],
+            "generationConfig": generation_config,
+        }
+        response = self._post_with_retries(
+            url=url,
+            payload=payload,
+            timeout=120.0,
+            headers=self._gemini_headers(),
+            provider_name="Gemini",
+        )
+        response.raise_for_status()
+        body = response.json()
+        candidates = body.get("candidates", [])
+        chunks: list[str] = []
+        for candidate in candidates:
+            content = candidate.get("content", {}) if isinstance(candidate, dict) else {}
+            parts = content.get("parts", []) if isinstance(content, dict) else []
+            for part in parts:
+                if isinstance(part, dict) and part.get("text"):
+                    chunks.append(str(part.get("text", "")))
+        text = "".join(chunks).strip()
+        if not text:
+            block_reason = str((body.get("promptFeedback") or {}).get("blockReason", "")).strip()
+            if block_reason:
+                raise RuntimeError(f"Gemini blocked the prompt: {block_reason}")
+            raise RuntimeError(f"Unexpected Gemini payload: {json.dumps(body)[:500]}")
+        return text
+
+    def _resolve_gemini_model(self, model: str | None) -> str:
+        candidate = str(model or "").strip()
+        if candidate.startswith("gemini-") or candidate.startswith("models/gemini-"):
+            return candidate.removeprefix("models/")
+        fallback = str(self.config.gemini_model or "gemini-2.5-flash").strip()
+        return fallback.removeprefix("models/")
+
     def generate_image(
         self,
         *,
@@ -237,10 +347,7 @@ class BlogAgentProvider:
         size: str,
         output_format: str,
     ) -> dict:
-        if not self.config.api_key:
-            raise RuntimeError(
-                "Missing API key. Set BLOG_AGENT_API_KEY or OPENAI_API_KEY before generating images."
-            )
+        self._require_openai_api_key()
         url = f"{self.config.api_base_url.rstrip('/')}/images/generations"
         payload = {
             "model": model,
@@ -249,7 +356,13 @@ class BlogAgentProvider:
             "size": size,
             "output_format": output_format,
         }
-        response = self._post_with_retries(url=url, payload=payload, timeout=180.0)
+        response = self._post_with_retries(
+            url=url,
+            payload=payload,
+            timeout=180.0,
+            headers=self._openai_headers(),
+            provider_name="OpenAI",
+        )
         response.raise_for_status()
         body = response.json()
         data = body.get("data", [])

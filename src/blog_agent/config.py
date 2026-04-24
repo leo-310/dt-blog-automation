@@ -36,6 +36,7 @@ class AgentConfig(BaseModel):
     product_name: str = "Doctor Towels"
     website_url: str = "https://doctortowels.com"
     primary_cta_url: str = "https://doctortowels.com"
+    provider: str = Field(default_factory=lambda: _resolve_provider_name())
     model: str = Field(
         default_factory=lambda: os.getenv("BLOG_AGENT_MODEL", "gpt-5.4")
     )
@@ -59,6 +60,24 @@ class AgentConfig(BaseModel):
     )
     api_mode: str = Field(
         default_factory=lambda: os.getenv("BLOG_AGENT_API_MODE", "auto")
+    )
+    gemini_api_key: str = Field(
+        default_factory=lambda: os.getenv("GEMINI_API_KEY", "")
+    )
+    gemini_api_base_url: str = Field(
+        default_factory=lambda: os.getenv(
+            "GEMINI_API_BASE_URL",
+            "https://generativelanguage.googleapis.com/v1beta",
+        )
+    )
+    gemini_model: str = Field(
+        default_factory=lambda: os.getenv("BLOG_AGENT_GEMINI_MODEL", "gemini-2.5-flash")
+    )
+    gemini_topic_model: str = Field(
+        default_factory=lambda: os.getenv("BLOG_AGENT_GEMINI_TOPIC_MODEL", "")
+    )
+    gemini_article_model: str = Field(
+        default_factory=lambda: os.getenv("BLOG_AGENT_GEMINI_ARTICLE_MODEL", "")
     )
     temperature: float = 0.7
     max_output_tokens: int | None = Field(
@@ -135,3 +154,15 @@ def _resolve_max_output_tokens(raw: str) -> int | None:
     if value <= 0:
         return None
     return value
+
+
+def _resolve_provider_name() -> str:
+    configured = os.getenv("BLOG_AGENT_PROVIDER", "").strip().lower()
+    if configured in {"gemini", "google"}:
+        return "gemini"
+    if configured in {"openai"}:
+        return "openai"
+    has_openai_key = bool(os.getenv("BLOG_AGENT_API_KEY") or os.getenv("OPENAI_API_KEY"))
+    if os.getenv("GEMINI_API_KEY") and not has_openai_key:
+        return "gemini"
+    return "openai"

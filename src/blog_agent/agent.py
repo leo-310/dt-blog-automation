@@ -105,7 +105,7 @@ class BlogAgent:
         plan_response = self.provider.complete(
             context["system_prompt"],
             topic_prompt,
-            model=self.config.topic_planner_model,
+            model=self._topic_model(),
         )
         plan = BlogPlan.model_validate(json.loads(extract_json(plan_response)))
         cluster = find_cluster(plan.target_query, clusters)
@@ -170,7 +170,7 @@ class BlogAgent:
             article_response = self.provider.complete(
                 context["system_prompt"],
                 article_prompt,
-                model=self.config.article_writer_model,
+                model=self._article_model(),
             )
             article = BlogArticle.model_validate(json.loads(extract_json(article_response)))
             try:
@@ -240,6 +240,16 @@ class BlogAgent:
             cluster=cluster,
             today=today,
         )
+
+    def _topic_model(self) -> str:
+        if self.config.provider == "gemini":
+            return self.config.gemini_topic_model or self.config.gemini_model
+        return self.config.topic_planner_model
+
+    def _article_model(self) -> str:
+        if self.config.provider == "gemini":
+            return self.config.gemini_article_model or self.config.gemini_model
+        return self.config.article_writer_model
 
 
 def extract_json(text: str) -> str:
