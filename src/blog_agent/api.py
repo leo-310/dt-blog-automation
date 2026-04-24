@@ -39,6 +39,7 @@ from .storage import (
     save_automation_settings,
     save_pipeline,
 )
+from .text_files import read_text_file, write_text_file
 from .visibility import load_latest_visibility_report
 
 GENERATED_IMAGE_DIR = CONTENT_DIR.parent / "images"
@@ -2250,7 +2251,7 @@ def rewrite_item_markdown_short_blog_links(
     if not file_path.exists():
         return False
 
-    raw = file_path.read_text()
+    raw = read_text_file(file_path)
     split_token = "\n---\n"
     if raw.startswith("---\n") and split_token in raw:
         _head, rest = raw.split("---\n", 1)
@@ -2275,7 +2276,7 @@ def rewrite_item_markdown_short_blog_links(
 
     if new_raw == raw:
         return False
-    file_path.write_text(new_raw)
+    write_text_file(file_path, new_raw)
     return True
 
 
@@ -2373,7 +2374,7 @@ def ensure_sub_blog_backlink_in_markdown(item: PipelineItem, pipeline: list[Pipe
     if not main_blog_url and not legacy_candidates:
         return False
 
-    raw = file_path.read_text()
+    raw = read_text_file(file_path)
     split_token = "\n---\n"
     if raw.startswith("---\n") and split_token in raw:
         _head, rest = raw.split("---\n", 1)
@@ -2399,7 +2400,7 @@ def ensure_sub_blog_backlink_in_markdown(item: PipelineItem, pipeline: list[Pipe
         new_raw = f"{updated_body.strip()}\n"
 
     if new_raw != raw:
-        file_path.write_text(new_raw)
+        write_text_file(file_path, new_raw)
         return True
     return False
 

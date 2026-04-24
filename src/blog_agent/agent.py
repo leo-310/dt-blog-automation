@@ -25,6 +25,7 @@ from .storage import (
     load_required_markdown,
     load_source_library,
 )
+from .text_files import read_text_file, write_text_file
 
 
 class BlogAgent:
@@ -36,9 +37,9 @@ class BlogAgent:
     def _load_generation_context(self) -> dict:
         clusters = load_keyword_clusters(self.config.topic_file)
         history = load_history(self.config.history_file)
-        brand_brief = self.config.brand_brief_file.read_text()
-        approved_facts = self.config.approved_facts_file.read_text()
-        style_guide = self.config.style_guide_file.read_text()
+        brand_brief = read_text_file(self.config.brand_brief_file)
+        approved_facts = read_text_file(self.config.approved_facts_file)
+        style_guide = read_text_file(self.config.style_guide_file)
         product_knowledge = load_required_markdown(
             self.config.product_knowledge_file,
             "product knowledge",
@@ -53,7 +54,7 @@ class BlogAgent:
         )
         source_library = load_source_library(self.config.sources_dir)
         recent_queries = [item.query for item in history[-20:]]
-        system_prompt = (PROMPTS_DIR / "system_prompt.md").read_text()
+        system_prompt = read_text_file(PROMPTS_DIR / "system_prompt.md")
         return {
             "clusters": clusters,
             "history": history,
@@ -85,7 +86,7 @@ class BlogAgent:
             if filtered:
                 clusters = filtered
         recent_queries = context["recent_queries"] + (blocked_queries or [])
-        topic_prompt = (PROMPTS_DIR / "topic_planner_prompt.md").read_text().format(
+        topic_prompt = read_text_file(PROMPTS_DIR / "topic_planner_prompt.md").format(
             brand_name=self.config.brand_name,
             product_name=self.config.product_name,
             website_url=self.config.website_url,
@@ -134,7 +135,7 @@ class BlogAgent:
         today = today or date.today()
         context = self._load_generation_context()
 
-        article_prompt_template = (PROMPTS_DIR / "article_writer_prompt.md").read_text()
+        article_prompt_template = read_text_file(PROMPTS_DIR / "article_writer_prompt.md")
         article: BlogArticle | None = None
         guideline_report: GuidelineReport | None = None
         last_error: RuntimeError | None = None
@@ -201,9 +202,10 @@ class BlogAgent:
             today=today,
         )
         output_path = CONTENT_DIR / f"{today.isoformat()}-{slug}.md"
-        output_path.write_text(
+        write_text_file(
+            output_path,
             f"{frontmatter}\n\n{article.body_markdown.strip()}\n\n"
-            f"{render_citations_section(article.medical_citations)}\n"
+            f"{render_citations_section(article.medical_citations)}\n",
         )
 
         append_history(

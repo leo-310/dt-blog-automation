@@ -6,6 +6,7 @@ from pathlib import Path
 import yaml
 
 from .models import KeywordCluster, PipelineItem, TopicHistoryItem
+from .text_files import read_text_file, write_text_file
 
 
 def ensure_directories(paths: list[Path]) -> None:
@@ -14,7 +15,7 @@ def ensure_directories(paths: list[Path]) -> None:
 
 
 def load_keyword_clusters(path: Path) -> list[KeywordCluster]:
-    raw = yaml.safe_load(path.read_text()) or {}
+    raw = yaml.safe_load(read_text_file(path)) or {}
     items = raw.get("clusters", [])
     return [KeywordCluster.model_validate(item) for item in items]
 
@@ -22,7 +23,7 @@ def load_keyword_clusters(path: Path) -> list[KeywordCluster]:
 def load_history(path: Path) -> list[TopicHistoryItem]:
     if not path.exists():
         return []
-    raw = yaml.safe_load(path.read_text()) or {}
+    raw = yaml.safe_load(read_text_file(path)) or {}
     items = raw.get("history", [])
     return [TopicHistoryItem.model_validate(item) for item in items]
 
@@ -31,26 +32,26 @@ def append_history(path: Path, item: TopicHistoryItem) -> None:
     history = load_history(path)
     history.append(item)
     payload = {"history": [entry.model_dump(mode="json") for entry in history]}
-    path.write_text(yaml.safe_dump(payload, sort_keys=False))
+    write_text_file(path, yaml.safe_dump(payload, sort_keys=False))
 
 
 def load_pipeline(path: Path) -> list[PipelineItem]:
     if not path.exists():
         return []
-    raw = yaml.safe_load(path.read_text()) or {}
+    raw = yaml.safe_load(read_text_file(path)) or {}
     items = raw.get("pipeline", [])
     return [PipelineItem.model_validate(item) for item in items]
 
 
 def save_pipeline(path: Path, items: list[PipelineItem]) -> None:
     payload = {"pipeline": [item.model_dump(mode="json") for item in items]}
-    path.write_text(yaml.safe_dump(payload, sort_keys=False))
+    write_text_file(path, yaml.safe_dump(payload, sort_keys=False))
 
 
 def load_automation_settings(path: Path) -> dict:
     if not path.exists():
         return {}
-    raw = yaml.safe_load(path.read_text()) or {}
+    raw = yaml.safe_load(read_text_file(path)) or {}
     settings = raw.get("settings", raw)
     if isinstance(settings, dict):
         return settings
@@ -59,7 +60,8 @@ def load_automation_settings(path: Path) -> dict:
 
 def save_automation_settings(path: Path, settings: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    write_text_file(
+        path,
         yaml.safe_dump({"settings": settings}, sort_keys=False),
     )
 
@@ -78,7 +80,7 @@ def build_frontmatter(title: str, description: str, excerpt: str, today: date) -
 
 
 def parse_markdown_file(path: Path) -> tuple[dict, str]:
-    raw = path.read_text()
+    raw = read_text_file(path)
     if not raw.startswith("---\n"):
         return {}, raw
 
@@ -97,7 +99,7 @@ def load_source_library(path: Path) -> str:
         if file_path.name == "README.md":
             continue
         relative = file_path.relative_to(path)
-        sections.append(f"## Source: {relative}\n\n{file_path.read_text().strip()}")
+        sections.append(f"## Source: {relative}\n\n{read_text_file(file_path).strip()}")
     return "\n\n".join(section for section in sections if section.strip())
 
 
@@ -105,7 +107,7 @@ def load_required_markdown(path: Path, label: str) -> str:
     if not path.exists():
         raise RuntimeError(f"Missing required source file: {label} ({path})")
 
-    content = path.read_text().strip()
+    content = read_text_file(path).strip()
     if len(content) < 60:
         raise RuntimeError(f"Required source file is too thin: {label} ({path})")
     return content

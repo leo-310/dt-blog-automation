@@ -11,6 +11,7 @@ import httpx
 import yaml
 
 from .models import PipelineItem
+from .text_files import read_text_file, write_text_file
 
 
 @dataclass(slots=True)
@@ -51,7 +52,7 @@ class NotionRepository:
             settings_page_id=_extract_notion_id(os.getenv("NOTION_SETTINGS_PAGE_ID", "").strip()),
         )
         if self.state_file.exists():
-            raw = yaml.safe_load(self.state_file.read_text()) or {}
+            raw = yaml.safe_load(read_text_file(self.state_file)) or {}
             state.parent_page_id = _extract_notion_id(str(raw.get("parent_page_id", state.parent_page_id)).strip())
             state.pillars_db_id = _extract_notion_id(str(raw.get("pillars_db_id", state.pillars_db_id)).strip())
             state.blog_pipeline_db_id = _extract_notion_id(
@@ -82,7 +83,7 @@ class NotionRepository:
             "settings_db_url": self.state.settings_db_url,
         }
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
-        self.state_file.write_text(yaml.safe_dump(payload, sort_keys=False))
+        write_text_file(self.state_file, yaml.safe_dump(payload, sort_keys=False))
 
     def diagnostics(self) -> dict[str, Any]:
         missing: list[str] = []

@@ -3,7 +3,9 @@ from __future__ import annotations
 import io
 import json
 import os
+import tempfile
 import unittest
+from pathlib import Path
 
 from blog_agent.api import BlogAgentApi, build_orphan_pipeline_rows_from_posts
 
@@ -37,7 +39,10 @@ def run_wsgi_request(app: BlogAgentApi, method: str, path: str, payload: dict | 
 class ApiRouteTests(unittest.TestCase):
     def setUp(self) -> None:
         os.environ["BLOG_AGENT_USE_NOTION"] = "0"
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temp_dir.cleanup)
         self.app = BlogAgentApi()
+        self.app.local_settings_file = Path(self._temp_dir.name) / "automation_settings.yaml"
 
     def test_get_settings_route(self) -> None:
         status, payload = run_wsgi_request(self.app, "GET", "/api/settings")

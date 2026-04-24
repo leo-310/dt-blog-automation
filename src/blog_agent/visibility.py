@@ -13,6 +13,7 @@ import yaml
 
 from .config import DATA_DIR
 from .storage import load_pipeline, parse_markdown_file
+from .text_files import read_text_file, write_text_file
 
 
 PROMPT_FILE = DATA_DIR / "visibility_prompts.yaml"
@@ -138,10 +139,10 @@ def write_visibility_report(report: dict, output_dir: Path | None = None) -> tup
     md_path = output_dir / f"visibility-{timestamp}.md"
     latest_json = output_dir / "latest.json"
     latest_md = output_dir / "latest.md"
-    json_path.write_text(json.dumps(report, indent=2))
-    md_path.write_text(render_report_markdown(report))
-    latest_json.write_text(json_path.read_text())
-    latest_md.write_text(md_path.read_text())
+    write_text_file(json_path, json.dumps(report, indent=2))
+    write_text_file(md_path, render_report_markdown(report))
+    write_text_file(latest_json, read_text_file(json_path))
+    write_text_file(latest_md, read_text_file(md_path))
     return json_path, md_path
 
 
@@ -151,7 +152,7 @@ def load_latest_visibility_report(output_dir: Path | None = None) -> dict | None
     if not latest.exists():
         return None
     try:
-        return json.loads(latest.read_text())
+        return json.loads(read_text_file(latest))
     except Exception:  # noqa: BLE001
         return None
 
@@ -463,7 +464,7 @@ def load_prompt_targets(
 def load_prompts_from_file(path: Path, max_topics: int = 8) -> list[PromptTarget]:
     if not path.exists():
         return []
-    raw = yaml.safe_load(path.read_text()) or {}
+    raw = yaml.safe_load(read_text_file(path)) or {}
     rows = raw.get("prompts", [])
     prompts: list[PromptTarget] = []
     for index, row in enumerate(rows):
