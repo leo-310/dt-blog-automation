@@ -10,6 +10,44 @@ from blog_agent.config import AgentConfig
 from blog_agent.provider import BlogAgentProvider
 
 
+class ProviderSelectionTests(unittest.TestCase):
+    def test_gemini_key_prefers_gemini_when_openai_key_exists(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "BLOG_AGENT_PROVIDER": "",
+                "BLOG_AGENT_API_KEY": "",
+                "OPENAI_API_KEY": "test-openai-key",
+                "GEMINI_API_KEY": "test-gemini-key",
+            },
+        ):
+            self.assertEqual(AgentConfig().provider, "gemini")
+
+    def test_explicit_openai_provider_overrides_gemini_key(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "BLOG_AGENT_PROVIDER": "openai",
+                "BLOG_AGENT_API_KEY": "",
+                "OPENAI_API_KEY": "test-openai-key",
+                "GEMINI_API_KEY": "test-gemini-key",
+            },
+        ):
+            self.assertEqual(AgentConfig().provider, "openai")
+
+    def test_provider_value_allows_wrapped_quotes(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "BLOG_AGENT_PROVIDER": '"gemini"',
+                "BLOG_AGENT_API_KEY": "",
+                "OPENAI_API_KEY": "test-openai-key",
+                "GEMINI_API_KEY": "test-gemini-key",
+            },
+        ):
+            self.assertEqual(AgentConfig().provider, "gemini")
+
+
 class ProviderRetryTests(unittest.TestCase):
     def setUp(self) -> None:
         os.environ["BLOG_AGENT_PROVIDER"] = "openai"

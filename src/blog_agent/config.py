@@ -50,8 +50,8 @@ class AgentConfig(BaseModel):
         or os.getenv("BLOG_AGENT_MODEL", "gpt-5.4")
     )
     api_key: str = Field(
-        default_factory=lambda: os.getenv("BLOG_AGENT_API_KEY")
-        or os.getenv("OPENAI_API_KEY", "")
+        default_factory=lambda: _env_value("BLOG_AGENT_API_KEY")
+        or _env_value("OPENAI_API_KEY")
     )
     api_base_url: str = Field(
         default_factory=lambda: os.getenv(
@@ -61,9 +61,7 @@ class AgentConfig(BaseModel):
     api_mode: str = Field(
         default_factory=lambda: os.getenv("BLOG_AGENT_API_MODE", "auto")
     )
-    gemini_api_key: str = Field(
-        default_factory=lambda: os.getenv("GEMINI_API_KEY", "")
-    )
+    gemini_api_key: str = Field(default_factory=lambda: _env_value("GEMINI_API_KEY"))
     gemini_api_base_url: str = Field(
         default_factory=lambda: os.getenv(
             "GEMINI_API_BASE_URL",
@@ -156,13 +154,16 @@ def _resolve_max_output_tokens(raw: str) -> int | None:
     return value
 
 
+def _env_value(name: str) -> str:
+    return os.getenv(name, "").strip().strip("'").strip('"').strip()
+
+
 def _resolve_provider_name() -> str:
-    configured = os.getenv("BLOG_AGENT_PROVIDER", "").strip().lower()
+    configured = _env_value("BLOG_AGENT_PROVIDER").lower()
     if configured in {"gemini", "google"}:
         return "gemini"
     if configured in {"openai"}:
         return "openai"
-    has_openai_key = bool(os.getenv("BLOG_AGENT_API_KEY") or os.getenv("OPENAI_API_KEY"))
-    if os.getenv("GEMINI_API_KEY") and not has_openai_key:
+    if _env_value("GEMINI_API_KEY"):
         return "gemini"
     return "openai"
