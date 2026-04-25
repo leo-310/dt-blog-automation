@@ -28,6 +28,9 @@ from .storage import (
 from .text_files import read_text_file, write_text_file
 
 
+MAX_META_DESCRIPTION_LENGTH = 160
+
+
 class BlogAgent:
     def __init__(self, config: AgentConfig) -> None:
         self.config = config
@@ -107,7 +110,8 @@ class BlogAgent:
             topic_prompt,
             model=self._topic_model(),
         )
-        plan = BlogPlan.model_validate(json.loads(extract_json(plan_response)))
+        plan_payload = normalize_generation_payload(json.loads(extract_json(plan_response)))
+        plan = BlogPlan.model_validate(plan_payload)
         cluster = find_cluster(plan.target_query, clusters)
         if cluster is None:
             fallback_pillar = clusters[0] if clusters else None
@@ -172,7 +176,8 @@ class BlogAgent:
                 article_prompt,
                 model=self._article_model(),
             )
-            article = BlogArticle.model_validate(json.loads(extract_json(article_response)))
+            article_payload = normalize_generation_payload(json.loads(extract_json(article_response)))
+            article = BlogArticle.model_validate(article_payload)
             try:
                 guideline_report = validate_article_requirements(article)
                 validate_required_internal_blog_links(
@@ -257,6 +262,27 @@ def extract_json(text: str) -> str:
     if not match:
         raise RuntimeError("The model did not return a JSON object.")
     return match.group(0)
+
+
+def normalize_generation_payload(payload: dict) -> dict:
+    normalized = dict(payload)
+    if "meta_description" in normalized:
+        normalized["meta_description"] = normalize_meta_description(
+            normalized["meta_description"]
+        )
+    return normalized
+
+
+def normalize_meta_description(value: object) -> str:
+    cleaned = re.sub(r"\s+", " ", str(value or "")).strip()
+    if len(cleaned) <= MAX_META_DESCRIPTION_LENGTH:
+        return cleaned
+
+    truncated = cleaned[:MAX_META_DESCRIPTION_LENGTH].rstrip()
+    word_boundary = truncated.rfind(" ")
+    if word_boundary >= MAX_META_DESCRIPTION_LENGTH - 30:
+        truncated = truncated[:word_boundary].rstrip()
+    return truncated.rstrip(" ,;:-")
 
 
 def sanitize_slug(value: str) -> str:
