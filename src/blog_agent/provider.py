@@ -23,6 +23,7 @@ class BlogAgentProvider:
         *,
         model: str | None = None,
         max_output_tokens: int | None = None,
+        response_mime_type: str | None = None,
     ) -> str:
         if self._resolve_provider() == "gemini":
             return self._complete_with_gemini(
@@ -30,6 +31,7 @@ class BlogAgentProvider:
                 user_prompt,
                 model=model,
                 max_output_tokens=max_output_tokens,
+                response_mime_type=response_mime_type,
             )
         self._require_openai_api_key()
         mode = self._resolve_mode()
@@ -283,13 +285,14 @@ class BlogAgentProvider:
         *,
         model: str | None = None,
         max_output_tokens: int | None = None,
+        response_mime_type: str | None = None,
     ) -> str:
         self._require_gemini_api_key()
         model_name = self._resolve_gemini_model(model)
         url = f"{self.config.gemini_api_base_url.rstrip('/')}/models/{model_name}:generateContent"
         generation_config: dict[str, object] = {
             "temperature": self.config.temperature,
-            "responseMimeType": "text/plain",
+            "responseMimeType": response_mime_type or "text/plain",
         }
         token_limit = self.config.max_output_tokens if max_output_tokens is None else max_output_tokens
         if token_limit is not None:

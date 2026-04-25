@@ -2,11 +2,24 @@ from __future__ import annotations
 
 import unittest
 
-from blog_agent.agent import MAX_META_DESCRIPTION_LENGTH, normalize_generation_payload
+from blog_agent.agent import (
+    MAX_META_DESCRIPTION_LENGTH,
+    parse_generation_json,
+    normalize_generation_payload,
+)
 from blog_agent.models import BlogArticle, BlogPlan
 
 
 class GenerationPayloadTests(unittest.TestCase):
+    def test_generation_json_accepts_fenced_object(self) -> None:
+        payload = parse_generation_json('```json\n{"title": "ok"}\n```')
+
+        self.assertEqual(payload, {"title": "ok"})
+
+    def test_generation_json_reports_malformed_location(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "line 1, column"):
+            parse_generation_json('{"body_markdown": "A "broken" quote"}')
+
     def test_plan_meta_description_is_trimmed_before_validation(self) -> None:
         payload = {
             "title": "A safer towel routine",

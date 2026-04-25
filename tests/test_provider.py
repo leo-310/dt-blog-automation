@@ -116,6 +116,36 @@ class ProviderRetryTests(unittest.TestCase):
         self.assertNotIn("Authorization", kwargs["headers"])
         self.assertEqual(kwargs["json"]["system_instruction"]["parts"][0]["text"], "system")
 
+    def test_complete_with_gemini_allows_json_mime_type(self) -> None:
+        os.environ["BLOG_AGENT_PROVIDER"] = "gemini"
+        os.environ["GEMINI_API_KEY"] = "test-gemini-key"
+        provider = BlogAgentProvider(AgentConfig())
+        request = httpx.Request(
+            "POST",
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+        )
+        response = httpx.Response(
+            200,
+            json={
+                "candidates": [
+                    {
+                        "content": {
+                            "parts": [{"text": "{\"title\":\"ok\"}"}],
+                        }
+                    }
+                ]
+            },
+            request=request,
+        )
+        with patch("blog_agent.provider.httpx.post", return_value=response) as mocked:
+            provider.complete("system", "user", response_mime_type="application/json")
+
+        _, kwargs = mocked.call_args
+        self.assertEqual(
+            kwargs["json"]["generationConfig"]["responseMimeType"],
+            "application/json",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

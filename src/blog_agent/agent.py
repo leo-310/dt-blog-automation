@@ -105,13 +105,29 @@ class BlogAgent:
             customer_language=context["customer_language"],
             source_library=context["source_library"],
         )
-        plan_response = self.provider.complete(
-            context["system_prompt"],
-            topic_prompt,
-            model=self._topic_model(),
-        )
-        plan_payload = normalize_generation_payload(json.loads(extract_json(plan_response)))
-        plan = BlogPlan.model_validate(plan_payload)
+        plan: BlogPlan | None = None
+        parse_error = ""
+        max_attempts = 2
+        for _attempt in range(max_attempts):
+            prompt = topic_prompt
+            if parse_error:
+                prompt = append_json_remediation(prompt, parse_error)
+            plan_response = self.provider.complete(
+                context["system_prompt"],
+                prompt,
+                model=self._topic_model(),
+                response_mime_type="application/json",
+            )
+            try:
+                plan_payload = normalize_generation_payload(
+                    parse_generation_json(plan_response)
+                )
+                plan = BlogPlan.model_validate(plan_payload)
+                break
+            except (RuntimeError, ValueError) as exc:
+                parse_error = str(exc)
+        if plan is None:
+            raise RuntimeError(f"Generated topic plan JSON was invalid: {parse_error}")
         cluster = find_cluster(plan.target_query, clusters)
         if cluster is None:
             fallback_pillar = clusters[0] if clusters else None
@@ -175,9 +191,17 @@ class BlogAgent:
                 context["system_prompt"],
                 article_prompt,
                 model=self._article_model(),
+                response_mime_type="application/json",
             )
-            article_payload = normalize_generation_payload(json.loads(extract_json(article_response)))
-            article = BlogArticle.model_validate(article_payload)
+            try:
+                article_payload = normalize_generation_payload(
+                    parse_generation_json(article_response)
+                )
+                article = BlogArticle.model_validate(article_payload)
+            except (RuntimeError, ValueError) as exc:
+                last_error = RuntimeError(f"Generated article JSON was invalid: {exc}")
+                remediation = str(last_error)
+                continue
             try:
                 guideline_report = validate_article_requirements(article)
                 validate_required_internal_blog_links(
@@ -262,6 +286,30 @@ def extract_json(text: str) -> str:
     if not match:
         raise RuntimeError("The model did not return a JSON object.")
     return match.group(0)
+
+
+def parse_generation_json(text: str) -> dict:
+    raw_json = extract_json(text)
+    try:
+        payload = json.loads(raw_json)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "The model returned malformed JSON "
+            f"at line {exc.lineno}, column {exc.colno}: {exc.msg}."
+        ) from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("The model JSON response must be an object.")
+    return payload
+
+
+def append_json_remediation(prompt: str, error: str) -> str:
+    return (
+        f"{prompt}\n\n"
+        "Previous response could not be parsed as JSON.\n"
+        f"Parser error: {error}\n"
+        "Return exactly one valid JSON object. Escape every quote and newline inside string values. "
+        "Do not include markdown fences, commentary, or trailing text."
+    )
 
 
 def normalize_generation_payload(payload: dict) -> dict:
