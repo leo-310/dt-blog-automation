@@ -35,7 +35,7 @@ Return JSON with this shape:
   "meta_description": "max 160 chars",
   "angle": "why this topic matters and how it connects to Doctor Towels",
   "outline": ["H2 or H3 heading", "H2 or H3 heading"],
-  "internal_links": ["/products/doctor-towels", "/blogs/acne-safe-towels-guide"],
+  "internal_links": ["/blogs/acne-safe-towels-guide", "/blogs/towel-hygiene-guide", "/blogs/sensitive-skin-towel-guide"],
   "keywords_to_use": ["keyword phrase 1", "keyword phrase 2", "keyword phrase 3"]
 }}
 
@@ -45,7 +45,7 @@ Rules:
 - Treat each cluster as a tagged sub-blog under a main pillar topic.
 - Keep a cadence bias toward pillar 1 style topics unless recent queries already over-index there.
 - Choose one pillar-aligned cluster and make the title/angle explicitly grounded in that pillar claim.
-- `internal_links` must include the selected pillar's main-blog URL in `/blogs/...` format so sub-blogs always link back to their main pillar post.
+- `internal_links` must include 3-5 relevant `/blogs/...` URLs when available. Put the selected pillar's main-blog URL first so sub-blogs always link back to their main pillar post, then add closely related supporting blog URLs.
 - Populate "keywords_to_use" from the selected cluster's supporting keywords plus tightly related variants for that query (5-10 items).
 - Prefer informational or comparison intent over hard-sell transactional topics.
 - Keep the angle grounded in skincare education.

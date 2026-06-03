@@ -22,6 +22,7 @@ from .storage import (
     ensure_directories,
     load_history,
     load_keyword_clusters,
+    load_pipeline,
     load_required_markdown,
     load_source_library,
 )
@@ -29,6 +30,11 @@ from .text_files import read_text_file, write_text_file
 
 
 MAX_META_DESCRIPTION_LENGTH = 160
+ARTICLE_MIN_WORDS = 2800
+ARTICLE_TARGET_WORDS = 3200
+ARTICLE_MAX_WORDS = 3600
+MIN_REQUIRED_INTERNAL_BLOG_LINKS = 3
+PLANNED_INTERNAL_BLOG_LINK_TARGET = 4
 
 
 class BlogAgent:
@@ -143,6 +149,11 @@ class BlogAgent:
                 sub_blog_tag=sanitize_slug(plan.target_query),
             )
         ensure_plan_has_main_blog_link(plan, cluster)
+        supplement_plan_internal_blog_links(
+            plan=plan,
+            cluster=cluster,
+            pipeline=load_pipeline(self.config.pipeline_file),
+        )
         return plan, cluster
 
     def generate_post_from_plan(
@@ -169,7 +180,9 @@ class BlogAgent:
                 website_url=self.config.website_url,
                 cta_url=self.config.primary_cta_url,
                 author_name=self.config.author_name,
-                target_word_count=self.config.default_word_count,
+                target_word_count=resolve_article_target_word_count(
+                    self.config.default_word_count
+                ),
                 plan_json=json.dumps(plan.model_dump(mode="json"), indent=2),
                 brand_brief=context["brand_brief"],
                 approved_facts=context["approved_facts"],
@@ -375,31 +388,131 @@ def ensure_plan_has_main_blog_link(plan: BlogPlan, cluster: KeywordCluster) -> N
     plan.internal_links = normalize_internal_links([*plan.internal_links, main_blog_url])
 
 
-def validate_required_internal_blog_links(body: str, internal_links: list[str]) -> None:
-    required_blog_links = [
-        link.strip()
-        for link in internal_links
-        if str(link).strip() and "/blogs/" in str(link).lower()
+def supplement_plan_internal_blog_links(
+    *,
+    plan: BlogPlan,
+    cluster: KeywordCluster,
+    pipeline: list[PipelineItem],
+    target_count: int = PLANNED_INTERNAL_BLOG_LINK_TARGET,
+) -> None:
+    links = normalize_internal_links(plan.internal_links)
+    blog_link_count = len(required_internal_blog_links(links))
+    if blog_link_count >= target_count:
+        plan.internal_links = links
+        return
+
+    candidates = [
+        (internal_blog_candidate_score(item, cluster), item)
+        for item in pipeline
     ]
+    candidates = [row for row in candidates if row[0][0] >= 0]
+    candidates.sort(key=lambda row: row[0], reverse=True)
+    for _score, item in candidates:
+        url = pipeline_item_blog_url(item)
+        if not url or "/blogs/" not in url.lower():
+            continue
+        links = normalize_internal_links([*links, url])
+        blog_link_count = len(required_internal_blog_links(links))
+        if blog_link_count >= target_count:
+            break
+    plan.internal_links = links
+
+
+def internal_blog_candidate_score(item: PipelineItem, cluster: KeywordCluster) -> tuple[int, str]:
+    score = 0
+    if item.status == "pushed":
+        score += 20
+    elif item.status == "approved":
+        score += 10
+    elif item.status == "draft":
+        score += 3
+    else:
+        return (-1, "")
+    if cluster.pillar_id and item.pillar_id == cluster.pillar_id:
+        score += 8
+    if cluster.name and item.cluster == cluster.name:
+        score += 4
+    if item.topic_role == "main":
+        score += 3
+    return (score, item.created_at or "")
+
+
+def pipeline_item_blog_url(item: PipelineItem) -> str:
+    metadata = item.metadata if isinstance(item.metadata, dict) else {}
+    direct = str(metadata.get("shopify_article_url", "")).strip()
+    direct_match = re.search(r"(/blogs/[^#?\s)]+(?:/[^#?\s)]*)?)", direct, flags=re.IGNORECASE)
+    if direct_match:
+        return re.sub(r"/+$", "", direct_match.group(1))
+
+    blog_handle = str(metadata.get("shopify_blog_handle", "")).strip()
+    article_handle = str(item.shopify_article_handle or "").strip()
+    if blog_handle and article_handle:
+        return f"/blogs/{sanitize_slug(blog_handle)}/{sanitize_slug(article_handle)}"
+    if article_handle:
+        return f"/blogs/{sanitize_slug(article_handle)}"
+
+    post_slug = blog_slug_from_post_id(item.post_id)
+    if post_slug:
+        return f"/blogs/{sanitize_slug(post_slug)}"
+
+    metadata_slug = str(metadata.get("slug", "")).strip()
+    if metadata_slug:
+        return f"/blogs/{sanitize_slug(metadata_slug)}"
+    if item.title:
+        return f"/blogs/{sanitize_slug(item.title)}"
+    return ""
+
+
+def blog_slug_from_post_id(post_id: str | None) -> str:
+    if not post_id:
+        return ""
+    stem = Path(post_id).stem
+    match = re.match(r"^\d{4}-\d{2}-\d{2}-(.+)$", stem)
+    return match.group(1) if match else stem
+
+
+def validate_required_internal_blog_links(body: str, internal_links: list[str]) -> None:
+    required_blog_links = required_internal_blog_links(internal_links)
     if not required_blog_links:
         return
 
+    normalized_body_targets = normalized_markdown_link_targets(body)
+    matched_links = [
+        link
+        for link in required_blog_links
+        if re.sub(r"/+$", "", link.lower()) in normalized_body_targets
+    ]
+    required_count = required_internal_blog_link_count(required_blog_links)
+
+    if len(matched_links) >= required_count:
+        return
+
+    raise RuntimeError(
+        "Generated article is missing required internal blog links in body_markdown. "
+        f"Expected at least {required_count} of: {required_blog_links}; "
+        f"found {len(matched_links)}."
+    )
+
+
+def required_internal_blog_links(internal_links: list[str]) -> list[str]:
+    return [
+        link.strip()
+        for link in normalize_internal_links(internal_links)
+        if str(link).strip() and "/blogs/" in str(link).lower()
+    ]
+
+
+def required_internal_blog_link_count(required_blog_links: list[str]) -> int:
+    return min(MIN_REQUIRED_INTERNAL_BLOG_LINKS, len(required_blog_links))
+
+
+def normalized_markdown_link_targets(body: str) -> set[str]:
     body_targets = re.findall(r"\]\(\s*([^)]+?)\s*\)", body, re.IGNORECASE)
-    normalized_body_targets = {
+    return {
         re.sub(r"/+$", "", target.strip().lower())
         for target in body_targets
         if target.strip()
     }
-
-    for link in required_blog_links:
-        normalized_link = re.sub(r"/+$", "", link.lower())
-        if normalized_link in normalized_body_targets:
-            return
-
-    raise RuntimeError(
-        "Generated article is missing the required main blog internal link in body_markdown. "
-        f"Expected one of: {required_blog_links}"
-    )
 
 
 def normalize_keyword_text(value: str) -> str:
@@ -464,8 +577,8 @@ def validate_article_requirements(article: BlogArticle) -> GuidelineReport:
     product_pillar_mentions = sum(1 for term in product_pillars if term in body_lower)
     checks.append(
         GuidelineCheck(
-            name="Word Count 1800-2500",
-            passed=1800 <= words <= 2500,
+            name=f"Word Count {ARTICLE_MIN_WORDS}-{ARTICLE_MAX_WORDS}",
+            passed=ARTICLE_MIN_WORDS <= words <= ARTICLE_MAX_WORDS,
             detail=f"Detected approximately {words} words.",
         )
     )
@@ -548,6 +661,12 @@ def validate_article_requirements(article: BlogArticle) -> GuidelineReport:
     if report.score < 8:
         raise RuntimeError(f"Generated article failed guideline quality gate: {report.summary}")
     return report
+
+
+def resolve_article_target_word_count(configured_word_count: int) -> int:
+    if ARTICLE_MIN_WORDS <= configured_word_count <= ARTICLE_MAX_WORDS:
+        return configured_word_count
+    return ARTICLE_TARGET_WORDS
 
 
 def render_citations_section(citations: list[str]) -> str:

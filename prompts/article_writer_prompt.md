@@ -47,7 +47,7 @@ Mandatory structure (exact H2s, in this order):
 8. ## Medical Sources & Further Reading
 
 Non-negotiable rules:
-- Target 1,800 to 2,500 words.
+- Target about {target_word_count} words. Acceptable range: 2,800 to 3,600 words.
 - Open with a relatable scenario and an aha moment in the first 3–4 sentences.
 - Mechanisms section: 2–4 H3 sub-sections with medical backing.
 - Habits section: 4–6 numbered H3s formatted exactly like "### 1. ...".
@@ -72,5 +72,5 @@ Non-negotiable rules:
   - Clinical Validation
 - Use 3–5 customer pain lines naturally.
 - Keep education-first tone. No hard CTA. End with perspective shift, not pitch.
-- Mandatory internal-link rule: include at least one `/blogs/...` main-blog link from `internal_links` in the article body, written naturally in-context.
+- Mandatory internal-link rule: include 3-5 `/blogs/...` links from `internal_links` in the article body when available. Place them naturally inside explanatory paragraphs, not as a link dump. If fewer than 3 blog links are supplied, include every supplied `/blogs/...` link.
 - Do not invent citations or unsupported claims.
